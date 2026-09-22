@@ -1,0 +1,9 @@
+# Semua permintaan di bawah /api diarahkan ke front controller.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
+
+# Berkas konfigurasi dan skema tidak boleh dilayani langsung.
+<FilesMatch "\.(sql|local\.php)$">
+  Require all denied
+</FilesMatch>

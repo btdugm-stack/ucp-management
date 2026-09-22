@@ -71,29 +71,54 @@ export function normalize(raw){
  };
  const out={version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,feas};
  if(typeof raw.savedAt==='string')out.savedAt=raw.savedAt;
+ // Id baris database dibawa apa adanya bila ada, supaya state hasil muat
+ // dari API tetap tahu proyek mana yang sedang dibuka.
+ if(Number.isInteger(raw.id))out.id=raw.id;
  return out;
 }
 
-export function load(){
- try{
-  const raw=localStorage.getItem(STORAGE_KEY);
-  if(!raw)return newState();
-  return normalize(JSON.parse(raw));
- }catch{return newState()}
-}
-export function save(s){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({...s,savedAt:new Date().toISOString()}));return true}catch{return false}}
-export function readStored(){try{return localStorage.getItem(STORAGE_KEY)}catch{return null}}
-export function clearStored(){try{localStorage.removeItem(STORAGE_KEY)}catch{}}
+// Sejak penyimpanan pindah ke MySQL, localStorage tidak lagi menjadi sumber
+// data. Perannya tinggal dua: menampung draft ketika penyimpanan ke database
+// gagal, dan menyimpan data dari versi lama yang belum dipindahkan.
 
-// Ringkasan ringan untuk halaman start: cukup untuk memutuskan apakah akan
-// melanjutkan proyek tersimpan, tanpa perlu memuat seluruh state ke UI.
-export function summary(){
+const DRAFT_PREFIX='ucp-draft-';
+const draftKey=id=>`${DRAFT_PREFIX}${id}`;
+
+export function saveDraft(id,s){
+ try{localStorage.setItem(draftKey(id),JSON.stringify({savedAt:new Date().toISOString(),state:s}));return true}catch{return false}
+}
+export function readDraft(id){
+ try{
+  const raw=localStorage.getItem(draftKey(id));
+  if(!raw)return null;
+  const parsed=JSON.parse(raw);
+  if(!parsed||typeof parsed!=='object'||!parsed.state)return null;
+  return {savedAt:typeof parsed.savedAt==='string'?parsed.savedAt:null,state:normalize(parsed.state)};
+ }catch{return null}
+}
+export function clearDraft(id){try{localStorage.removeItem(draftKey(id))}catch{}}
+
+// Data dari versi sebelum database. Dibaca sekali agar bisa ditawarkan
+// pindah ke MySQL, supaya pekerjaan yang sudah ada tidak menjadi tidak
+// terjangkau hanya karena tempat penyimpanannya berubah.
+export function legacyState(){
  try{
   const raw=localStorage.getItem(STORAGE_KEY);
   if(!raw)return null;
   const s=normalize(JSON.parse(raw));
-  return {name:s.project.name,code:s.project.code,status:s.project.status,actors:s.actors.length,useCases:s.useCases.length,savedAt:s.savedAt||null};
+  return {name:s.project.name,code:s.project.code,actors:s.actors.length,useCases:s.useCases.length,state:s};
  }catch{return null}
+}
+export function readStored(){try{return localStorage.getItem(STORAGE_KEY)}catch{return null}}
+export function clearStored(){try{localStorage.removeItem(STORAGE_KEY)}catch{}}
+
+// Dipakai layar pemulihan: membersihkan seluruh jejak lokal, termasuk draft
+// proyek mana pun, tanpa menyentuh data yang sudah aman di database.
+export function clearAllLocal(){
+ try{
+  clearStored();
+  for(const key of Object.keys(localStorage))if(key.startsWith(DRAFT_PREFIX))localStorage.removeItem(key);
+ }catch{}
 }
 
 // Proyek baru berangkat dari kanvas kosong: tanpa actor dan use case contoh,

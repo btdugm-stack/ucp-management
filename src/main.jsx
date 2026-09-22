@@ -1,11 +1,12 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
+import {Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType} from './calc.js';
-import {load,save,newState,emptyProject,summary,normalize,nextCode,uid,statuses,levels,readStored,clearStored} from './state.js';
+import {newState,emptyProject,normalize,nextCode,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
+import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
 import './styles.css';
 
-const AUTOSAVE_MS=600;
+const AUTOSAVE_MS=1000;
 
 // Input numerik yang menerima ketikan bebas tapi tidak pernah meneruskan nilai
 // kosong atau di luar rentang ke state. Ini pertahanan lapis pertama terhadap
@@ -27,11 +28,11 @@ class Boundary extends React.Component{
  render(){
   if(!this.state.error)return this.props.children;
   const backup=()=>{const raw=readStored();download(new Blob([raw??'{}'],{type:'application/json'}),'ucp-backup-rusak.json')};
-  const recover=()=>{clearStored();location.reload()};
+  const recover=()=>{clearAllLocal();location.reload()};
   return <div className="crash"><div>
    <TriangleAlert size={34}/>
    <h1>Aplikasi gagal dimuat</h1>
-   <p>Terjadi kesalahan saat merender data proyek. Data yang tersimpan tidak dihapus otomatis. Unduh cadangannya lebih dulu, lalu bersihkan penyimpanan untuk memulai dari data contoh.</p>
+   <p>Terjadi kesalahan saat merender data proyek. Proyek yang sudah tersimpan di database tidak terpengaruh — yang dibersihkan hanya data sementara di browser ini. Unduh cadangannya lebih dulu bila masih diperlukan.</p>
    <pre>{String(this.state.error?.message||this.state.error)}</pre>
    <div className="crash-actions">
     <button onClick={backup}><Download size={15}/>Unduh cadangan data</button>
@@ -63,45 +64,97 @@ const flow=[
 ];
 const chain=[['UAW','Bobot actor'],['UUCW','Bobot use case'],['TCF','0,6 + 0,01 × TF'],['ECF','1,4 − 0,03 × EF'],['UCP','(UAW + UUCW) × TCF × ECF'],['Effort','UCP × PHM'],['Duration','3 × PM^(1/3)']];
 
-function StartScreen({saved,onNew,onContinue,onExample,onImport,onExport}){
+function StartScreen({onOpen,onCreate,onImportClick,legacy,onMigrate,onDismissLegacy}){
+ const [rows,setRows]=useState(null);
+ const [error,setError]=useState(null);
+ const [busy,setBusy]=useState(false);
+
+ const refresh=async()=>{
+  setError(null);
+  try{setRows(await listProjects())}
+  catch(e){setError(e);setRows([])}
+ };
+ useEffect(()=>{refresh()},[]);
+
+ const guard=fn=>async(...args)=>{
+  if(busy)return;
+  setBusy(true);
+  try{await fn(...args)}
+  catch(e){alert(e?.message||'Operasi gagal.')}
+  finally{setBusy(false)}
+ };
+ const duplicate=guard(async id=>{await duplicateProject(id);await refresh()});
+ const remove=guard(async row=>{
+  if(!confirm(`Hapus proyek "${row.name||'Tanpa nama'}" beserta seluruh actor, use case, dan rencananya dari database?\n\nTindakan ini tidak dapat dibatalkan.`))return;
+  await deleteProject(row.id);
+  await refresh();
+ });
+
  return <div className="start">
   <div className="start-inner">
    <header className="start-head">
     <div className="logo">U</div>
-    <div><b>UCP Manager</b><small>Local Estimation Engine</small></div>
+    <div><b>UCP Manager</b><small>Estimation Engine · MySQL</small></div>
    </header>
    <h1>Estimasi proyek berbasis Use Case Point</h1>
-   <p className="lede">Susun estimasi effort, jadwal, kebutuhan tim, dan biaya proyek dari analisis actor dan use case. Seluruh data disimpan di browser ini dan tidak dikirim ke mana pun.</p>
+   <p className="lede">Susun estimasi effort, jadwal, kebutuhan tim, dan biaya proyek dari analisis actor dan use case. Setiap proyek tersimpan di database MySQL pada mesin ini.</p>
 
-   <div className="start-actions">
-    {saved&&<article className="start-card resume">
-     <div className="start-card-head"><FolderOpen size={17}/><span>Proyek tersimpan</span></div>
-     <b>{saved.name||'Tanpa nama'}</b>
-     <small>{[saved.code,saved.status].filter(Boolean).join(' · ')}</small>
-     <ul className="start-meta">
-      <li>{saved.actors} actor</li>
-      <li>{saved.useCases} use case</li>
-      {saved.savedAt&&<li><Clock size={12}/>{when(saved.savedAt)}</li>}
-     </ul>
-     <div className="start-card-actions">
-      <button className="primary" onClick={onContinue}>Lanjutkan<ArrowRight size={15}/></button>
-      <button onClick={onExport}><Download size={14}/>Export</button>
-     </div>
-    </article>}
-    <article className={`start-card ${saved?'':'lead'}`}>
-     <div className="start-card-head"><FilePlus2 size={17}/><span>Proyek baru</span></div>
-     <b>Mulai dari nol</b>
-     <small>Kanvas kosong tanpa actor dan use case. Faktor teknis, faktor lingkungan, dan distribusi fase tetap mengikuti baku model UCP.</small>
-     <div className="start-card-actions">
-      <button className={saved?'':'primary'} onClick={onNew}>Mulai Proyek Baru<ArrowRight size={15}/></button>
-     </div>
-    </article>
-   </div>
+   {legacy&&<div className="legacy">
+    <div>
+     <b><Database size={15}/>Proyek dari versi sebelumnya ditemukan di browser ini</b>
+     <small>{(legacy.name||'Tanpa nama')} · {legacy.code||'tanpa kode'} · {legacy.actors} actor · {legacy.useCases} use case. Versi lama menyimpan data di browser; pindahkan ke database agar ikut terdaftar di sini.</small>
+    </div>
+    <div className="legacy-actions">
+     <button className="primary" onClick={()=>onMigrate(legacy.state)}>Pindahkan ke database</button>
+     <button onClick={onDismissLegacy}>Abaikan</button>
+    </div>
+   </div>}
 
-   <div className="start-secondary">
-    <button onClick={onExample}><Sparkles size={15}/>Muat data contoh</button>
-    <button onClick={onImport}><Upload size={15}/>Import dari file JSON</button>
-   </div>
+   <section className="projects">
+    <div className="projects-head">
+     <h2>Proyek</h2>
+     <div>
+      <button onClick={onImportClick}><Upload size={15}/>Import JSON</button>
+      <button onClick={()=>onCreate(newState(),'dashboard')}><Sparkles size={15}/>Data contoh</button>
+      <button className="primary" onClick={()=>onCreate(emptyProject(),'project')}><FilePlus2 size={15}/>Proyek Baru</button>
+     </div>
+    </div>
+
+    {error&&<div className="db-down">
+     <b><CircleAlert size={16}/>Database tidak dapat dihubungi</b>
+     <p>{error.message}</p>
+     <small>Jalankan MySQL dan Apache dari Laragon, lalu muat ulang daftar. Saat pengembangan, pastikan juga <code>npm run api</code> sedang berjalan.</small>
+     <button onClick={refresh}><RotateCcw size={14}/>Coba lagi</button>
+    </div>}
+
+    {rows===null&&!error&&<p className="hint">Memuat daftar proyek…</p>}
+
+    {rows!==null&&!error&&rows.length===0&&<div className="empty">
+     <FolderOpen size={26}/>
+     <b>Belum ada proyek</b>
+     <small>Mulai dari kanvas kosong, atau muat data contoh untuk melihat rantai perhitungan yang sudah terisi.</small>
+    </div>}
+
+    {rows!==null&&rows.length>0&&<ul className="project-list">
+     {rows.map(row=><li key={row.id}>
+      <div className="project-main">
+       <b>{row.name||'Tanpa nama'}</b>
+       <ul className="start-meta">
+        {row.code&&<li>{row.code}</li>}
+        <li>{row.status}</li>
+        <li>{row.actors} actor</li>
+        <li>{row.useCases} use case</li>
+        {row.savedAt&&<li><Clock size={12}/>{when(row.savedAt)}</li>}
+       </ul>
+      </div>
+      <div className="project-actions">
+       <button className="primary" onClick={()=>onOpen(row.id)}>Buka<ArrowRight size={14}/></button>
+       <button onClick={()=>duplicate(row.id)} disabled={busy}><Copy size={14}/>Duplikat</button>
+       <button className="danger" onClick={()=>remove(row)} disabled={busy} aria-label={`Hapus proyek ${row.name}`}><Trash2 size={14}/>Hapus</button>
+      </div>
+     </li>)}
+    </ul>}
+   </section>
 
    <section className="start-flow">
     <h2>Alur penggunaan</h2>
@@ -114,36 +167,41 @@ function StartScreen({saved,onNew,onContinue,onExample,onImport,onExport}){
     <div className="chain">{chain.map(([k,v],i)=><div key={k}>{i>0&&<i aria-hidden="true">→</i>}<span><b>{k}</b><small>{v}</small></span></div>)}</div>
    </section>
 
-   <p className="start-note">Pekerjaan tersimpan otomatis di browser ini. Karena penyimpanan bersifat lokal, gunakan <b>Export</b> secara berkala sebagai cadangan, dan <b>Import</b> untuk memulihkannya di perangkat lain.</p>
+   <p className="start-note">Perubahan tersimpan otomatis ke database MySQL. Bila database sempat tidak terjangkau, perubahan ditahan sementara di browser dan dikirim ulang begitu koneksi pulih. Gunakan <b>Export</b> untuk cadangan di luar database.</p>
   </div>
  </div>;
 }
 
 function App(){
- const [s,setS]=useState(load);
+ const [s,setS]=useState(emptyProject);
+ const [projectId,setProjectId]=useState(null);
  const [view,setView]=useState('start');
  const [tab,setTab]=useState('dashboard');
  const [status,setStatus]=useState('saved');
+ const [legacy,setLegacy]=useState(legacyState);
  const fileRef=useRef(null);
- const mounted=useRef(false);
+ const importTarget=useRef('new');
+ const skipSave=useRef(true);
  const calc=useMemo(()=>calculate(s),[s]);
  const issues=useMemo(()=>validate(s,calc),[s,calc]);
- // Dibaca ulang setiap kali halaman start ditampilkan agar ringkasannya
- // mencerminkan hasil autosave terakhir, bukan kondisi saat aplikasi dibuka.
- const saved=useMemo(()=>view==='start'?summary():null,[view]);
 
- // Autosave menggantikan ketergantungan pada tombol Save. Tombolnya tetap ada
- // karena menyimpan secara eksplisit adalah kebiasaan yang wajar, tapi menutup
- // tab tidak lagi berarti kehilangan pekerjaan.
+ // Autosave ke MySQL. Kegagalan tidak membuang pekerjaan: perubahan ditahan
+ // sebagai draft di browser dan dikirim ulang pada penyimpanan berikutnya,
+ // sehingga database yang mati tidak lagi berarti kehilangan data.
  useEffect(()=>{
-  if(!mounted.current){mounted.current=true;return}
+  if(skipSave.current){skipSave.current=false;return}
+  if(projectId===null)return;
   setStatus('dirty');
-  const t=setTimeout(()=>setStatus(save(s)?'saved':'error'),AUTOSAVE_MS);
+  const t=setTimeout(async()=>{
+   setStatus('saving');
+   try{await saveProject(projectId,s);clearDraft(projectId);setStatus('saved')}
+   catch{saveDraft(projectId,s);setStatus('offline')}
+  },AUTOSAVE_MS);
   return ()=>clearTimeout(t);
- },[s]);
+ },[s,projectId]);
 
  useEffect(()=>{
-  if(status!=='dirty')return;
+  if(status==='saved')return;
   const warn=e=>{e.preventDefault();e.returnValue=''};
   window.addEventListener('beforeunload',warn);
   return ()=>window.removeEventListener('beforeunload',warn);
@@ -156,43 +214,95 @@ function App(){
   for(let i=0;i<path.length-1;i++){const k=path[i];node[k]=Array.isArray(node[k])?[...node[k]]:{...node[k]};node=node[k]}
   node[path[path.length-1]]=val;return next;
  });
- const saveNow=()=>setStatus(save(s)?'saved':'error');
- const reset=()=>{if(confirm('Reset seluruh data ke contoh awal? Data tersimpan akan dihapus.')){clearStored();setS(newState())}};
+
+ const land=(state,id,tabId,dirty=false)=>{
+  skipSave.current=!dirty;
+  setProjectId(id);
+  setS(state);
+  setStatus(dirty?'dirty':'saved');
+  setTab(tabId);
+  setView('app');
+ };
+
+ const openProject=async id=>{
+  try{
+   const remote=normalize(await getProject(id));
+   const draft=readDraft(id);
+   // Draft hanya ada bila penyimpanan sebelumnya gagal. Keputusan memakainya
+   // diserahkan ke pengguna karena hanya dia yang tahu mana yang lebih benar.
+   if(draft&&confirm('Ada perubahan dari sesi sebelumnya yang belum sempat tersimpan ke database.\n\nOK untuk memulihkan perubahan itu, Batal untuk memakai versi yang ada di database.')){
+    land(draft.state,id,'dashboard',true);
+    return;
+   }
+   if(draft)clearDraft(id);
+   land(remote,id,'dashboard');
+  }catch(e){alert(e?.message||'Proyek gagal dibuka.')}
+ };
+
+ const createAndOpen=async(state,tabId)=>{
+  try{
+   const created=normalize(await createProject(state));
+   land(created,created.id,tabId);
+   return created;
+  }catch(e){alert(e?.message||'Proyek gagal dibuat.');return null}
+ };
+
+ const migrateLegacy=async state=>{
+  const created=await createAndOpen(state,'dashboard');
+  if(created){clearStored();setLegacy(null)}
+ };
+
+ const saveNow=async()=>{
+  if(projectId===null)return;
+  setStatus('saving');
+  try{await saveProject(projectId,s);clearDraft(projectId);setStatus('saved')}
+  catch(e){saveDraft(projectId,s);setStatus('offline');alert(e?.message||'Penyimpanan ke database gagal. Perubahan ditahan di browser ini.')}
+ };
+
+ const deleteCurrent=async()=>{
+  if(projectId===null)return;
+  if(!confirm(`Hapus proyek "${s.project.name||'Tanpa nama'}" beserta seluruh isinya dari database?\n\nTindakan ini tidak dapat dibatalkan.`))return;
+  try{
+   await deleteProject(projectId);
+   clearDraft(projectId);
+   setProjectId(null);
+   setStatus('saved');
+   setView('start');
+  }catch(e){alert(e?.message||'Penghapusan gagal.')}
+ };
+
  const exportJson=()=>download(new Blob([JSON.stringify({...s,calculation:calc,issues},null,2)],{type:'application/json'}),`${s.project.code||'ucp'}-project.json`);
+ const pickFile=target=>{importTarget.current=target;fileRef.current?.click()};
  const importJson=e=>{
   const file=e.target.files?.[0];e.target.value='';
   if(!file)return;
+  const target=importTarget.current;
   const reader=new FileReader();
-  reader.onload=()=>{
-   try{
-    const data=normalize(JSON.parse(String(reader.result)));
-    if(confirm(`Ganti seluruh data saat ini dengan isi "${file.name}"?`)){setS(data);enter('dashboard')}
-   }catch{alert('File tidak dapat dibaca sebagai JSON proyek UCP yang valid.')}
+  reader.onload=async()=>{
+   let data;
+   try{data=normalize(JSON.parse(String(reader.result)))}
+   catch{alert('File tidak dapat dibaca sebagai JSON proyek UCP yang valid.');return}
+   delete data.id;
+   if(target==='new'){await createAndOpen(data,'dashboard');return}
+   if(confirm(`Ganti isi proyek ini dengan "${file.name}"? Isi lama akan ditimpa di database.`))setS({...data,id:projectId});
   };
   reader.onerror=()=>alert('Gagal membaca file.');
   reader.readAsText(file);
  };
 
- const enter=tabId=>{setTab(tabId);setView('app')};
- // Mengganti isi proyek berarti menimpa satu-satunya salinan yang tersimpan,
- // jadi selalu minta konfirmasi dan ingatkan jalur cadangannya lebih dulu.
- const replace=(next,tabId)=>{
-  if(saved&&!confirm('Proyek yang tersimpan akan digantikan dan tidak dapat dikembalikan. Export dulu sebagai cadangan bila masih dibutuhkan.\n\nLanjutkan?'))return;
-  setS(next());
-  enter(tabId);
- };
- const goStart=()=>{saveNow();setView('start')};
+ const goStart=async()=>{if(status==='dirty')await saveNow();setView('start')};
 
  const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
- const label={dirty:'Menyimpan…',saved:'Tersimpan',error:'Gagal menyimpan'}[status];
+ const badge={dirty:['dirty','Perubahan belum tersimpan'],saving:['dirty','Menyimpan…'],saved:['saved','Tersimpan di database'],offline:['error','Gagal tersimpan — ditahan di browser']}[status]??['saved','Tersimpan'];
  const picker=<input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>;
 
- if(view==='start')return <>{picker}<StartScreen saved={saved}
-  onNew={()=>replace(emptyProject,'project')}
-  onExample={()=>replace(newState,'dashboard')}
-  onContinue={()=>{setS(load());enter('dashboard')}}
-  onImport={()=>fileRef.current?.click()}
-  onExport={exportJson}/></>;
+ if(view==='start')return <>{picker}<StartScreen
+  onOpen={openProject}
+  onCreate={createAndOpen}
+  onImportClick={()=>pickFile('new')}
+  legacy={legacy}
+  onMigrate={migrateLegacy}
+  onDismissLegacy={()=>setLegacy(null)}/></>;
 
  return <div className="app">
   {picker}
@@ -203,8 +313,8 @@ function App(){
    <div className="side-actions four">
     <button onClick={goStart}><House size={16}/>Beranda</button>
     <button onClick={exportJson}><Download size={16}/>Export</button>
-    <button onClick={()=>fileRef.current?.click()}><Upload size={16}/>Import</button>
-    <button onClick={reset}><RotateCcw size={16}/>Reset</button>
+    <button onClick={()=>pickFile('current')}><Upload size={16}/>Import</button>
+    <button className="danger" onClick={deleteCurrent}><Trash2 size={16}/>Hapus</button>
    </div>
   </aside>
   <main>
@@ -212,8 +322,8 @@ function App(){
     <div><div className="eyebrow">USE CASE POINT • PROJECT ESTIMATION</div><h1>{title(tab)}</h1></div>
     <div className="header-actions">
      <span className="status">{s.project.status}</span>
-     <span className={`autosave ${status}`} role="status">{status==='saved'?<CircleCheck size={14}/>:<CircleAlert size={14}/>}{label}</span>
-     <button className="primary" onClick={saveNow}><Save size={16}/>Save</button>
+     <span className={`autosave ${badge[0]}`} role="status">{status==='saved'?<CircleCheck size={14}/>:<CircleAlert size={14}/>}{badge[1]}</span>
+     <button className="primary" onClick={saveNow}><Save size={16}/>Simpan</button>
     </div>
    </header>
    <Issues items={issues}/>
