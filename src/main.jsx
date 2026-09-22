@@ -2,7 +2,7 @@ import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
-import {newState,emptyProject,normalize,nextCode,nextModuleCode,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
+import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
 import './styles.css';
 
@@ -181,6 +181,7 @@ function App(){
  const [tab,setTab]=useState('dashboard');
  const [status,setStatus]=useState('saved');
  const [legacy,setLegacy]=useState(legacyState);
+ const [activeModule,setActiveModule]=useState('');
  const fileRef=useRef(null);
  const importTarget=useRef('new');
  const skipSave=useRef(true);
@@ -221,6 +222,7 @@ function App(){
   skipSave.current=!dirty;
   setProjectId(id);
   setS(state);
+  setActiveModule(resolveActiveModule(state.modules,''));
   setStatus(dirty?'dirty':'saved');
   setTab(tabId);
   setView('app');
@@ -294,7 +296,7 @@ function App(){
 
  const goStart=async()=>{if(status==='dirty')await saveNow();setView('start')};
 
- const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow,[['usecases','Daftar Use Case'],['modules','Rekap per Modul']]],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
+ const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow,[['usecases','Daftar Use Case'],['modulepreview','Use Case per Modul'],['modules','Rekap per Modul']]],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
  const badge={dirty:['dirty','Perubahan belum tersimpan'],saving:['dirty','Menyimpan…'],saved:['saved','Tersimpan di database'],offline:['error','Gagal tersimpan — ditahan di browser']}[status]??['saved','Tersimpan'];
  const picker=<input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>;
 
@@ -338,7 +340,8 @@ function App(){
    {tab==='dashboard'&&<Dashboard s={s} c={calc} go={setTab} update={update}/>}
    {tab==='project'&&<Project s={s} update={update}/>}
    {tab==='actors'&&<Actors s={s} setS={setS} c={calc}/>}
-   {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc}/>}
+   {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc} activeModule={activeModule} setActiveModule={setActiveModule}/>}
+   {tab==='modulepreview'&&<ModulePreview s={s} c={calc} go={setTab}/>}
    {tab==='modules'&&<ModuleRecap s={s} c={calc} go={setTab}/>}
    {tab==='factors'&&<Factors s={s} update={update} c={calc}/>}
    {tab==='calculation'&&<Calculation s={s} c={calc} update={update}/>}
@@ -350,7 +353,7 @@ function App(){
  </div>;
 }
 
-function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',modules:'Rekap Use Case per Modul',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
+function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',modulepreview:'Use Case per Modul',modules:'Rekap Use Case per Modul',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
 function Card({label,value,sub}){return <div className="card"><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>}
 
 function Dashboard({s,c,go,update}){return <><section className="hero"><div><span className="pill">BASELINE ESTIMATE</span><h2>{s.project.name}</h2><p>{s.project.description}</p></div><div className="hero-number"><small>USE CASE POINT</small><b>{c.ucp.toFixed(2)}</b><span>{c.pm.toFixed(2)} person-month</span></div></section><div className="cards"><Card label="UCP" value={c.ucp.toFixed(2)} sub="Use Case Point"/><Card label="Person Hours" value={fmt(c.ph)} sub={`PHM ${s.params.phm}`}/><Card label="Person-Month" value={c.pm.toFixed(2)} sub="Effort"/><Card label="Duration" value={`${c.duration.toFixed(2)} mo`} sub="3 × PM^(1/3)"/></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Calculation Flow</h3><button onClick={()=>go('calculation')}>Open Engine <ChevronRight size={15}/></button></div><div className="flow"><div><b>{c.uaw.toFixed(0)}</b><small>UAW</small></div><i>+</i><div><b>{c.uucw.toFixed(0)}</b><small>UUCW</small></div><i>×</i><div><b>{c.tcf.toFixed(2)}</b><small>TCF</small></div><i>×</i><div><b>{c.ecf.toFixed(2)}</b><small>ECF</small></div><i>=</i><div className="accent"><b>{c.ucp.toFixed(2)}</b><small>UCP</small></div></div></section><section className="panel"><div className="panel-head"><h3>SDLC Distribution</h3><button onClick={()=>go('planning')}>Edit <ChevronRight size={15}/></button></div>{c.phase.map(p=><div className="barrow" key={p.name}><div><span>{p.name}</span><b>{p.duration.toFixed(2)} mo</b></div><div className="bar"><i style={{width:`${Math.min(100,num(p.weight))}%`}}/></div></div>)}</section></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Scenario Sensitivity</h3><button onClick={()=>go('calculation')}>Configure</button></div><table><caption className="sr-only">Sensitivitas estimasi terhadap PHM dan kapasitas kerja</caption><thead><tr><th scope="col">PHM</th><th scope="col">Capacity</th><th scope="col">Person-Month</th><th scope="col">Duration</th></tr></thead><tbody>{[[20,8,22],[20,10,26],[28,8,22],[28,10,26]].map(x=>{const pm=(c.ucp*x[0])/(x[1]*x[2]);return <tr key={x.join()}><td>{x[0]}</td><td>{x[1]}h × {x[2]}d</td><td>{pm.toFixed(2)}</td><td>{(3*Math.cbrt(pm)).toFixed(2)} mo</td></tr>})}</tbody></table></section><CustomScenario s={s} c={c} update={update}/></div></>}
@@ -385,14 +388,17 @@ function Actors({s,setS,c}){
  return <section className="panel"><div className="panel-head"><h3>Actors</h3><button className="primary" onClick={add}><Plus size={15}/>Add Actor</button></div><table><caption className="sr-only">Daftar actor dan bobotnya</caption><thead><tr><th scope="col">Actor</th><th scope="col">Classification</th><th scope="col">Qty</th><th scope="col">Weight</th><th scope="col">Subtotal</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead><tbody>{s.actors.map(a=><tr key={a.id}><td><input value={a.name} aria-label="Nama actor" onChange={e=>patch(a.id,'name',e.target.value)}/></td><td><select value={a.type} aria-label="Klasifikasi actor" onChange={e=>patch(a.id,'type',e.target.value)}>{Object.keys(actorWeights).map(x=><option key={x}>{x}</option>)}</select></td><td><NumInput value={a.qty} min={0} max={9999} aria-label="Jumlah actor" onCommit={v=>patch(a.id,'qty',v)}/></td><td>{actorWeights[a.type]}</td><td><b>{num(a.qty)*actorWeights[a.type]}</b></td><td><button className="icon" aria-label={`Hapus actor ${a.name}`} onClick={()=>del(a.id,a.name)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>{!s.actors.length&&<p className="hint">Belum ada actor. UAW akan bernilai 0.</p>}<div className="total">UAW <b>{c.uaw}</b></div></section>;
 }
 
-function UseCases({s,setS,c}){
- const add=()=>setS(p=>({...p,useCases:[...p.useCases,{id:uid(),code:nextCode(p.useCases),name:'New Use Case',actor:'',transactions:3,type:'Simple',override:false,module:''}]}));
+function UseCases({s,setS,c,activeModule,setActiveModule}){
+ const active=resolveActiveModule(s.modules,activeModule);
+ const aktif=s.modules.find(m=>m.key===active);
+ const add=()=>setS(p=>({...p,useCases:[...p.useCases,newUseCase(p.useCases,resolveActiveModule(p.modules,active))]}));
  const patch=(id,k,v)=>setS(p=>({...p,useCases:p.useCases.map(x=>x.id===id?{...x,[k]:v}:x)}));
  const del=(id,name)=>{if(confirm(`Hapus use case "${name}"?`))setS(p=>({...p,useCases:p.useCases.filter(x=>x.id!==id)}))};
- const addModule=()=>setS(p=>({...p,modules:[...p.modules,{key:uid(),code:nextModuleCode(p.modules),name:'Modul Baru'}]}));
+ // Modul yang baru dibuat langsung menjadi tujuan penempatan, sehingga
+ // menambahkan modul lalu menambahkan use case sudah cukup tanpa langkah
+ // penetapan terpisah.
+ const addModule=()=>setS(p=>{const m=newModule(p.modules);setActiveModule(m.key);return {...p,modules:[...p.modules,m]}});
  const patchModule=(key,k,v)=>setS(p=>({...p,modules:p.modules.map(m=>m.key===key?{...m,[k]:v}:m)}));
- // Menghapus modul tidak boleh menghapus use case di dalamnya; rujukannya
- // dilepas saja sehingga use case kembali berstatus tanpa modul.
  const delModule=(key,name)=>{
   const dipakai=s.useCases.filter(u=>u.module===key).length;
   const pesan=dipakai?`Hapus modul "${name}"? ${dipakai} use case di dalamnya tidak ikut terhapus, hanya dilepas dari modul.`:`Hapus modul "${name}"?`;
@@ -401,30 +407,29 @@ function UseCases({s,setS,c}){
  return <>
   {!!s.modules.length&&<section className="panel">
    <div className="panel-head"><h3>Modul Aplikasi</h3><span className="total">{s.modules.length} modul</span></div>
-   <table><caption className="sr-only">Daftar modul aplikasi</caption>
-    <thead><tr><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
-    <tbody>{s.modules.map(m=>{const row=c.moduleRows.find(r=>r.key===m.key);return <tr key={m.key}>
+   <table><caption className="sr-only">Daftar modul aplikasi dan modul yang sedang aktif</caption>
+    <thead><tr><th scope="col">Aktif</th><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+    <tbody>{s.modules.map(m=>{const row=c.moduleRows.find(r=>r.key===m.key);return <tr key={m.key} className={m.key===active?'aktif':''}>
+     <td><label className="check"><input type="radio" name="modul-aktif" checked={m.key===active} aria-label={`Jadikan ${m.name} modul aktif`} onChange={()=>setActiveModule(m.key)}/><span>{m.key===active?'aktif':''}</span></label></td>
      <td><input className="code" value={m.code} aria-label="Kode modul" onChange={e=>patchModule(m.key,'code',e.target.value)}/></td>
      <td><input value={m.name} aria-label="Nama modul" onChange={e=>patchModule(m.key,'name',e.target.value)}/></td>
      <td>{row?.count??0}</td>
      <td><b>{row?.uucw??0}</b></td>
      <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key,m.name)}><Trash2 size={15}/></button></td>
     </tr>})}</tbody></table>
+   <p className="hint">Use case yang ditambahkan akan masuk ke modul yang bertanda <b>aktif</b>. Pilih baris lain untuk memindahkan tujuan penempatan sebelum menambah use case berikutnya.</p>
   </section>}
 
   <section className="panel">
    <div className="panel-head"><h3>Use Cases</h3><div className="head-buttons">
     <button onClick={addModule}><Boxes size={15}/>Add Modul</button>
-    <button className="primary" onClick={add}><Plus size={15}/>Add Use Case</button>
+    <button className="primary" onClick={add}><Plus size={15}/>Add Use Case{aktif&&<span className="target">→ {aktif.code||aktif.name}</span>}</button>
    </div></div>
    <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption>
-   <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Modul</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+   <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
    <tbody>{s.useCases.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);return <tr key={u.id}>
     <td><input className="code" value={u.code} aria-label="Kode use case" onChange={e=>patch(u.id,'code',e.target.value)}/></td>
     <td><input value={u.name} aria-label="Nama use case" onChange={e=>patch(u.id,'name',e.target.value)}/></td>
-    <td>{s.modules.length
-     ?<select value={u.module} aria-label={`Modul untuk ${u.code}`} onChange={e=>patch(u.id,'module',e.target.value)}><option value="">— tanpa modul —</option>{s.modules.map(m=><option key={m.key} value={m.key}>{[m.code,m.name].filter(Boolean).join(' · ')}</option>)}</select>
-     :<span className="muted">—</span>}</td>
     <td><input value={u.actor} aria-label="Actor terkait" onChange={e=>patch(u.id,'actor',e.target.value)}/></td>
     <td><NumInput value={u.transactions} min={0} max={999} aria-label="Jumlah transaksi" onCommit={v=>patch(u.id,'transactions',v)}/></td>
     <td>{u.override?<select value={u.type} aria-label="Kompleksitas manual" onChange={e=>patch(u.id,'type',e.target.value)}>{complexity.map(x=><option key={x}>{x}</option>)}</select>:<span className="derived">{derived}<small>dari {num(u.transactions)} transaksi</small></span>}</td>
@@ -434,7 +439,42 @@ function UseCases({s,setS,c}){
    </tr>})}</tbody></table>
    {!s.useCases.length&&<p className="hint">Belum ada use case. UUCW akan bernilai 0.</p>}
    <div className="total">UUCW <b>{c.uucw}</b></div>
-   <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Modul bersifat opsional — tambahkan lewat <b>Add Modul</b> bila estimasi perlu dipecah per modul aplikasi.</p>
+   <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Modul bersifat opsional — penempatan use case ke modul dapat ditinjau pada submenu <b>Use Case per Modul</b>.</p>
+  </section>
+ </>;
+}
+
+// Pratinjau penempatan use case per modul. Halaman ini hanya untuk ditinjau,
+// sehingga seluruh nilainya ditampilkan apa adanya tanpa kolom isian.
+function ModulePreview({s,c,go}){
+ const milik=key=>s.useCases.filter(u=>(s.modules.some(m=>m.key===u.module)?u.module:'')===key);
+ const lepas=c.moduleRows.find(r=>!r.assigned);
+ if(!s.useCases.length)return <section className="panel"><div className="empty"><Boxes size={26}/><b>Belum ada use case</b><small>Tambahkan use case lebih dulu pada Daftar Use Case; penempatannya ke modul akan tampil di sini.</small><div className="crash-actions"><button className="primary" onClick={()=>go('usecases')}>Buka Daftar Use Case<ChevronRight size={15}/></button></div></div></section>;
+ return <>
+  <div className="cards">
+   <Card label="Modul" value={s.modules.length} sub="kelompok aplikasi"/>
+   <Card label="Use Case" value={s.useCases.length}/>
+   <Card label="Sudah Bermodul" value={s.useCases.length-(lepas?.count??0)}/>
+   <Card label="Tanpa Modul" value={lepas?.count??0}/>
+  </div>
+  {c.moduleRows.map(r=><section className="panel" key={r.key||'__lepas'}>
+   <div className="panel-head">
+    <h3>{r.name}{r.code&&<span className="tag">{r.code}</span>}</h3>
+    <span className="total">{r.count} use case · UUCW <b>{r.uucw}</b></span>
+   </div>
+   {r.count
+    ?<table><caption className="sr-only">Use case pada {r.name}</caption>
+      <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Weight</th></tr></thead>
+      <tbody>{milik(r.key).map(u=>{const eff=effectiveType(u);return <tr key={u.id}>
+       <td>{u.code}</td><td>{u.name}</td><td>{u.actor||<span className="muted">—</span>}</td>
+       <td>{num(u.transactions)}</td>
+       <td>{eff}{u.override&&<small className="flag">manual</small>}</td>
+       <td><b>{ucWeights[eff]}</b></td>
+      </tr>})}</tbody></table>
+    :<p className="hint">Belum ada use case pada modul ini. Jadikan modul ini <b>aktif</b> pada Daftar Use Case, lalu tambahkan use case.</p>}
+  </section>)}
+  <section className="panel"><div className="panel-head"><h3>Tinjauan</h3><button onClick={()=>go('modules')}>Lihat Rekap Angka <ChevronRight size={15}/></button></div>
+   <p className="hint">Halaman ini hanya untuk ditinjau. Penempatan use case mengikuti modul yang <b>aktif</b> saat use case dibuat, diatur pada Daftar Use Case.</p>
   </section>
  </>;
 }

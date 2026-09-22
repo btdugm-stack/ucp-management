@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalize,newState,emptyProject,nextCode,nextModuleCode,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
+import {normalize,newState,emptyProject,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
 import {calculate,deriveComplexity} from '../src/calc.js';
 
 // normalize() adalah satu-satunya pintu masuk data dari localStorage maupun
@@ -180,4 +180,38 @@ test('nextModuleCode() tidak menghasilkan kode kembar', () => {
  assert.equal(nextModuleCode([{code:'M1'},{code:'M2'}]),'M3');
  assert.equal(nextModuleCode([{code:'M1'},{code:'M3'}]),'M4');
  assert.equal(nextModuleCode([{code:'Lain'}]),'M1');
+});
+
+test('use case baru mewarisi modul yang sedang aktif', () => {
+ const kosong=newUseCase([],'');
+ assert.equal(kosong.module,'');
+ assert.equal(kosong.code,'UC-001');
+ const ke=newUseCase([{code:'UC-001'}],'kunci-modul');
+ assert.equal(ke.module,'kunci-modul');
+ assert.equal(ke.code,'UC-002','penomoran tetap berjalan');
+ assert.equal(newUseCase([],null).module,'','kunci tidak sah diperlakukan sebagai tanpa modul');
+ assert.equal(newUseCase([],undefined).module,'');
+});
+
+test('newModule() memberi kunci unik, kode berurutan, dan nama berbeda', () => {
+ const a=newModule([]);
+ assert.equal(a.code,'M1');
+ assert.equal(a.name,'Modul M1');
+ assert.ok(a.key);
+ const b=newModule([a]);
+ assert.equal(b.code,'M2');
+ assert.equal(b.name,'Modul M2');
+ assert.notEqual(a.key,b.key);
+ // dua modul baru berturut-turut tidak boleh memicu peringatan nama kembar
+ assert.notEqual(a.name,b.name);
+ assert.equal(newModule([],'Autentikasi').name,'Autentikasi','nama pilihan pengguna dihormati');
+});
+
+test('modul aktif selalu menunjuk modul yang ada', () => {
+ const modules=[{key:'a',code:'M1',name:'A'},{key:'b',code:'M2',name:'B'}];
+ assert.equal(resolveActiveModule(modules,'a'),'a','pilihan sah dipertahankan');
+ assert.equal(resolveActiveModule(modules,'sudah-dihapus'),'b','jatuh ke modul terakhir');
+ assert.equal(resolveActiveModule(modules,''),'b');
+ assert.equal(resolveActiveModule([],'a'),'','tanpa modul berarti tanpa penempatan');
+ assert.equal(resolveActiveModule(null,'a'),'');
 });

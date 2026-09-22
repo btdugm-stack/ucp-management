@@ -171,3 +171,23 @@ export function nextModuleCode(modules){
  const max=modules.reduce((m,x)=>{const n=/^M-?(\d+)$/i.exec((x.code||'').trim());return n?Math.max(m,Number(n[1])):m},0);
  return `M${max+1}`;
 }
+
+// Pembuatan baris baru dipusatkan di sini agar aturan penempatannya dapat
+// diuji tanpa merender antarmuka. Use case baru mewarisi modul yang sedang
+// aktif, sehingga pengguna tidak perlu menetapkannya satu per satu.
+export function newUseCase(useCases,moduleKey=''){
+ return {id:uid(),code:nextCode(useCases),name:'New Use Case',actor:'',transactions:3,type:'Simple',override:false,module:typeof moduleKey==='string'?moduleKey:''};
+}
+export function newModule(modules,name){
+ // Nama bawaan mengikuti kodenya agar dua modul baru tidak langsung
+ // dianggap berduplikat nama oleh panel peringatan.
+ const code=nextModuleCode(modules);
+ return {key:uid(),code,name:name||`Modul ${code}`};
+}
+// Modul aktif harus selalu menunjuk modul yang benar-benar ada. Ketika modul
+// aktif dihapus, pilihan jatuh ke modul terakhir, dan menjadi kosong bila
+// tidak ada modul sama sekali.
+export function resolveActiveModule(modules,key){
+ if(!Array.isArray(modules)||!modules.length)return '';
+ return modules.some(m=>m.key===key)?key:modules[modules.length-1].key;
+}

@@ -142,3 +142,9 @@ tr.loose td:first-child b{color:#8a6a2d}
 .share{height:6px;background:#edf0f4;border-radius:99px;overflow:hidden;min-width:56px;margin-bottom:4px}
 .share i{display:block;height:100%;background:#b9844c;border-radius:99px}
 td .share+small{color:#64748b;font-size:10px}
+
+tr.aktif{background:#fdfaf5}
+tr.aktif td{border-bottom-color:#e8dcc9}
+.check input[type=radio]{width:14px;height:14px;min-width:auto;padding:0}
+.target{font-weight:700;opacity:.8;font-size:11px;margin-left:2px}
+.tag{display:inline-block;margin-left:8px;background:#f1eadf;color:#7a4e28;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:800;vertical-align:middle}

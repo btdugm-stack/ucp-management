@@ -121,10 +121,18 @@ perubahan ditahan sebagai draft di browser dan ditawarkan untuk dipulihkan saat
 proyek dibuka kembali, sehingga database yang mati tidak berarti kehilangan
 pekerjaan. Gunakan **Export** untuk cadangan di luar database.
 
-**Modul aplikasi bersifat opsional.** Use case dapat dikelompokkan ke modul
-lewat tombol *Add Modul* pada Daftar Use Case, dan hasilnya dibaca pada submenu
-*Rekap per Modul*. Rekap menampilkan jumlah use case, sebaran Simple/Average/
-Complex, UUCW, dan porsi masing-masing modul. Effort serta biaya per modul
+**Modul aplikasi bersifat opsional.** Menambah modul lewat *Add Modul* langsung
+menjadikannya modul **aktif**, dan setiap use case yang dibuat sesudahnya masuk
+ke modul tersebut. Tujuan penempatan dipindahkan dengan memilih baris lain pada
+panel Modul Aplikasi. Tabel use case sendiri tidak memuat kolom penetapan modul;
+hasil penempatannya ditinjau pada submenu *Use Case per Modul* yang bersifat
+baca saja, sedangkan angkanya pada *Rekap per Modul*.
+
+Karena penempatan mengikuti modul aktif saat use case dibuat, use case yang
+terlanjur masuk modul yang keliru belum dapat dipindahkan dari antarmuka.
+
+Rekap menampilkan jumlah use case, sebaran Simple/Average/Complex, UUCW, dan
+porsi masing-masing modul. Effort serta biaya per modul
 dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang
 melekat pada masing-masing use case; UAW, TCF, dan ECF berlaku untuk proyek
 secara keseluruhan. Use case yang belum masuk modul tetap dihitung dan muncul
