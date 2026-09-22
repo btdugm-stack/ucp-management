@@ -54,14 +54,24 @@ test('baseline seed menghasilkan rantai UCP yang benar', () => {
  assert.equal(c.uaw,10);                 // 3x1 + 2x2 + 1x3
  assert.equal(c.uucw,15);                // Simple(5) + Average(10)
  assert.equal(c.uu,25);
- near(c.tf,42);                          // 13 faktor, rating 3, bobot total 14
- near(c.tcf,1.02);                       // 0.6 + 0.01 x 42
- near(c.ef,13.5);                        // 8 faktor, rating 3, bobot total 4.5
- near(c.ecf,0.995);                      // 1.4 - 0.03 x 13.5
- near(c.ucp,25.3725);
- near(c.ph,507.45);
- near(c.pm,507.45/176);
- near(c.duration,3*Math.cbrt(507.45/176));
+ near(c.tf,47);                          // assigned value bawaan x bobot model
+ near(c.tcf,1.07);                       // 0.6 + 0.01 x 47
+ near(c.ef,21.5);
+ near(c.ecf,0.755);                      // 1.4 - 0.03 x 21.5
+ near(c.ucp,20.19625);                   // 25 x 1.07 x 0.755
+ near(c.ph,403.925);
+ near(c.pm,403.925/176);
+ near(c.duration,3*Math.cbrt(403.925/176));
+});
+
+test('assigned value bawaan sesuai daftar yang ditetapkan', () => {
+ const tf=Object.fromEntries(seed.tf.map(f=>[f.id,f.rating]));
+ const ef=Object.fromEntries(seed.ef.map(f=>[f.id,f.rating]));
+ assert.deepEqual(tf,{T1:5,T2:4,T3:2,T4:4,T5:2,T6:5,T7:3,T8:3,T9:3,T10:2,T11:2,T12:5,T13:3});
+ assert.deepEqual(ef,{E1:4,E2:3,E3:4,E4:4,E5:3,E6:4,E7:0,E8:3});
+ // hasil kali per baris, sebagai pagar terhadap tertukarnya bobot dan nilai
+ near(seed.tf.reduce((a,f)=>a+f.rating*f.weight,0),47);
+ near(seed.ef.reduce((a,f)=>a+f.rating*f.weight,0),21.5);
 });
 
 test('kapasitas kerja nol menghasilkan 0, bukan Infinity', () => {
@@ -152,8 +162,8 @@ test('kalkulasi custom: Mandays = PM x durasi x working days', () => {
  near(c.mandays,c.pm*c.duration*22);
  near(c.man,c.mandays/120);
  // nilai konkret dari data contoh, sebagai pagar terhadap perubahan rumus
- near(c.mandays,270.84,0.01);
- near(c.man,2.257,0.001);
+ near(c.mandays,199.7996,0.001);
+ near(c.man,1.665,0.001);
 });
 
 test('kalkulasi custom memakai PM dan durasi dari perhitungan default', () => {

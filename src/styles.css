@@ -126,3 +126,6 @@ tfoot b{color:#182033;font-size:13px}
 
 .factor strong.neg{color:#a3352f}
 .hint.wide{grid-column:1/-1;margin:0}
+
+.factor.head{padding:0 0 9px;border-bottom:1px solid #e4e8ef;margin-bottom:4px}
+.factor.head span{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#94a3b8;font-weight:800;line-height:1.35}

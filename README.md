@@ -120,6 +120,12 @@ perubahan ditahan sebagai draft di browser dan ditawarkan untuk dipulihkan saat
 proyek dibuka kembali, sehingga database yang mati tidak berarti kehilangan
 pekerjaan. Gunakan **Export** untuk cadangan di luar database.
 
+**Assigned value bawaan** untuk proyek baru mengikuti daftar pada
+`defaultTF` dan `defaultEF` di `src/state.js`, bukan nilai seragam. Baseline
+bawaan menghasilkan TF 47 (TCF 1,07) dan EF 21,5 (ECF 0,755). Nilai bawaan ini
+hanya berlaku untuk proyek baru dan untuk faktor yang tidak punya nilai
+tersimpan, sehingga proyek yang sudah ada di database tidak ikut berubah.
+
 **Assigned value menerima nilai negatif.** Kolom yang dapat diisi pada tab
 Factors adalah assigned value, sedangkan bobot di sebelahnya ditetapkan model
 dan tidak dapat diubah. Rentangnya diperluas menjadi −5 sampai 5 atas

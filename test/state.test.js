@@ -133,3 +133,20 @@ test('parameter kalkulasi custom dijepit saat dimuat', () => {
  assert.deepEqual(normalize({custom:'rusak'}).custom,{workingDays:22,projectDays:120});
  assert.deepEqual(emptyProject().custom,{workingDays:22,projectDays:120});
 });
+
+test('assigned value bawaan dipakai untuk faktor yang tidak punya nilai tersimpan', () => {
+ // hanya T1 yang tersimpan; sisanya jatuh ke bawaan masing-masing, bukan ke 3
+ const s=normalize({...newState(),tf:[{id:'T1',rating:1}]});
+ assert.equal(s.tf.find(f=>f.id==='T1').rating,1);
+ assert.equal(s.tf.find(f=>f.id==='T6').rating,5);
+ assert.equal(s.tf.find(f=>f.id==='T3').rating,2);
+ assert.equal(s.ef.find(f=>f.id==='E7').rating,0);
+ assert.equal(s.ef.find(f=>f.id==='E1').rating,4);
+});
+
+test('proyek yang sudah tersimpan tidak ikut berubah oleh bawaan baru', () => {
+ const tersimpan={...newState(),tf:defaultTF.map(x=>({id:x[0],rating:1})),ef:defaultEF.map(x=>({id:x[0],rating:1}))};
+ const s=normalize(tersimpan);
+ assert.ok(s.tf.every(f=>f.rating===1),'nilai tersimpan harus menang atas bawaan');
+ assert.ok(s.ef.every(f=>f.rating===1));
+});

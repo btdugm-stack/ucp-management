@@ -8,9 +8,13 @@ export const levels=['Low','Medium','High'];
 
 // Bobot TF/EF ditentukan oleh model UCP, bukan oleh user. Daftar ini selalu
 // menjadi sumber kebenaran saat memuat data supaya bobot tidak bisa rusak.
-export const defaultTF=[['T1','Distributed system','Kemampuan sistem bekerja pada beberapa lokasi/komponen.',2],['T2','Response/performance','Kebutuhan performa dan waktu respons.',1],['T3','End-user efficiency','Efisiensi pengguna akhir.',1],['T4','Complex internal processing','Kompleksitas pemrosesan internal.',1],['T5','Reusable code','Kebutuhan komponen reusable.',1],['T6','Easy to install','Kemudahan instalasi.',.5],['T7','Easy to use','Kemudahan penggunaan.',.5],['T8','Portable','Kebutuhan portabilitas.',2],['T9','Easy to change','Kemudahan perubahan.',1],['T10','Concurrent use','Kebutuhan concurrency.',1],['T11','Security','Kebutuhan keamanan.',1],['T12','Direct access for third parties','Akses langsung pihak ketiga.',1],['T13','Special training','Kebutuhan pelatihan khusus.',1]];
-export const defaultEF=[['E1','Familiarity with development process','Pengalaman dengan proses pengembangan.',1.5],['E2','Application experience','Pengalaman pada domain aplikasi.',.5],['E3','OO experience','Pengalaman object-oriented.',1],['E4','Lead analyst capability','Kapabilitas lead analyst.',.5],['E5','Motivation','Motivasi tim.',1],['E6','Stable requirements','Stabilitas requirement.',2],['E7','Part-time workers','Proporsi pekerja part-time.',-1],['E8','Difficult programming language','Tingkat kesulitan bahasa/platform.',-1]];
-const factors=def=>def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:3}));
+// Setiap baris: [kode, nama, deskripsi, bobot model, assigned value bawaan].
+// Bobot ditetapkan model UCP dan tidak pernah diambil dari data tersimpan;
+// assigned value bawaan hanya berlaku untuk proyek baru dan untuk faktor yang
+// tidak punya nilai tersimpan, sehingga proyek yang sudah ada tidak berubah.
+export const defaultTF=[['T1','Distributed system','Kemampuan sistem bekerja pada beberapa lokasi/komponen.',2,5],['T2','Response/performance','Kebutuhan performa dan waktu respons.',1,4],['T3','End-user efficiency','Efisiensi pengguna akhir.',1,2],['T4','Complex internal processing','Kompleksitas pemrosesan internal.',1,4],['T5','Reusable code','Kebutuhan komponen reusable.',1,2],['T6','Easy to install','Kemudahan instalasi.',.5,5],['T7','Easy to use','Kemudahan penggunaan.',.5,3],['T8','Portable','Kebutuhan portabilitas.',2,3],['T9','Easy to change','Kemudahan perubahan.',1,3],['T10','Concurrent use','Kebutuhan concurrency.',1,2],['T11','Security','Kebutuhan keamanan.',1,2],['T12','Direct access for third parties','Akses langsung pihak ketiga.',1,5],['T13','Special training','Kebutuhan pelatihan khusus.',1,3]];
+export const defaultEF=[['E1','Familiarity with development process','Pengalaman dengan proses pengembangan.',1.5,4],['E2','Application experience','Pengalaman pada domain aplikasi.',.5,3],['E3','OO experience','Pengalaman object-oriented.',1,4],['E4','Lead analyst capability','Kapabilitas lead analyst.',.5,4],['E5','Motivation','Motivasi tim.',1,3],['E6','Stable requirements','Stabilitas requirement.',2,4],['E7','Part-time workers','Proporsi pekerja part-time.',-1,0],['E8','Difficult programming language','Tingkat kesulitan bahasa/platform.',-1,3]];
+const factors=def=>def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:x[4]}));
 
 export const seed={
  version:STATE_VERSION,
@@ -53,7 +57,7 @@ export function normalize(raw){
   return {id:str(u?.id)||uid(),code:str(u?.code),name:str(u?.name,'Use Case'),actor:str(u?.actor),transactions,type,override};
  });
 
- const ratings=(def,stored)=>{const by=new Map(arr(stored).map(x=>[str(x?.id),x]));return def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:clamp(by.get(x[0])?.rating??3,RATING_MIN,RATING_MAX)}))};
+ const ratings=(def,stored)=>{const by=new Map(arr(stored).map(x=>[str(x?.id),x]));return def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:clamp(by.get(x[0])?.rating??x[4],RATING_MIN,RATING_MAX)}))};
  const params={
   phm:clamp(raw.params?.phm??d.params.phm,0,1000),
   hours:clamp(raw.params?.hours??d.params.hours,1,24),
