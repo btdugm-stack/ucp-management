@@ -152,3 +152,13 @@ tr.aktif td{border-bottom-color:#e8dcc9}
 td select.asing{border-color:#e4b4b0;background:#fdf7f6;color:#a3352f}
 .linklike{border:0;background:transparent;color:#8b5e34;font-weight:700;font-size:inherit;padding:0;display:inline-flex;align-items:center;gap:2px;text-decoration:underline}
 tbody tr td i{font-style:italic;color:#64748b}
+
+.panel.export{display:flex;flex-direction:column}
+.panel.export .panel-head h3{display:flex;align-items:center;gap:8px}
+.sheetlist{list-style:none;padding:0;margin:14px 0 18px;display:grid;gap:5px}
+.sheetlist li{font-size:11.5px;color:#4b5563;background:#f8fafc;border:1px solid #edf0f4;border-radius:7px;padding:7px 11px}
+button.big{margin-top:auto;justify-content:center;padding:12px 16px;font-size:13px;border-radius:10px}
+button.big:disabled{opacity:.6;cursor:not-allowed}
+.spin{animation:putar 1s linear infinite}
+@keyframes putar{to{transform:rotate(360deg)}}
+.hint svg{vertical-align:-2px;margin-right:3px;color:#5d7a5f}

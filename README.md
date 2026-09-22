@@ -92,6 +92,24 @@ src/
 test/         unit test Node
 ```
 
+## Laporan
+
+Menu **Laporan** pada sidebar menghasilkan dua berkas dari proyek yang sedang
+dibuka:
+
+- **Excel (.xlsx)** berisi data masukan dan keluaran, satu lembar per bagian:
+  Proyek, Actors, Use Cases, Rekap Modul, Faktor Teknis, Faktor Lingkungan,
+  Perhitungan, Fase, Staffing dan Biaya, serta Peringatan.
+- **Word (.docx)** berisi ringkasan hasil akhir untuk dibaca dan dilampirkan:
+  identitas, ringkasan estimasi, rantai perhitungan, distribusi fase, rekap
+  modul, rencana sumber daya, penilaian kelayakan, dan catatan pemeriksaan.
+
+Keduanya adalah berkas Office asli, dihasilkan oleh `api/report.php` memakai
+ZipArchive bawaan PHP tanpa pustaka tambahan. Isi laporan disusun di
+`src/report.js` dari hasil `calculate()` yang sama dengan yang tampil di layar,
+lalu dikirim ke API sebagai daftar lembar dan blok. Server hanya merender, tidak
+menghitung, sehingga tidak ada rumus yang ditulis dua kali dalam dua bahasa.
+
 ## Endpoint
 
 | Metode | Path | Keterangan |
@@ -103,6 +121,8 @@ test/         unit test Node
 | PUT | `/api/projects/{id}` | menimpa isi proyek |
 | DELETE | `/api/projects/{id}` | menghapus proyek beserta seluruh isinya |
 | POST | `/api/projects/{id}/duplicate` | menggandakan proyek |
+| POST | `/api/report/xlsx` | merender lembar kerja menjadi berkas .xlsx |
+| POST | `/api/report/docx` | merender blok dokumen menjadi berkas .docx |
 
 ## Catatan rancangan
 

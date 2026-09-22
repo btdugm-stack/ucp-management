@@ -44,3 +44,24 @@ export const createProject=async state=>(await request('/projects',{method:'POST
 export const saveProject=async(id,state)=>(await request(`/projects/${id}`,{method:'PUT',body:JSON.stringify(state)})).project;
 export const duplicateProject=async id=>(await request(`/projects/${id}/duplicate`,{method:'POST'})).project;
 export const deleteProject=id=>request(`/projects/${id}`,{method:'DELETE'});
+
+// Laporan dikembalikan sebagai berkas biner, bukan JSON, sehingga permintaan
+// ini tidak melewati request() yang selalu mengurai JSON.
+export async function buildReport(format,spec){
+ let res;
+ try{
+  res=await fetch(`${BASE}/report/${format}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(spec)});
+ }catch(cause){
+  throw new ApiError('Server API tidak dapat dihubungi sama sekali.',0,String(cause?.message||cause),'backend');
+ }
+ if(!res.ok){
+  const teks=await res.text();
+  let body=null;
+  try{body=JSON.parse(teks)}catch{}
+  const kind=res.status===503?'database':(res.status===502||res.status===504||res.status===404)?'backend':'server';
+  throw new ApiError(body?.error||`Laporan gagal dibuat (status ${res.status}).`,res.status,body?.detail||teks.slice(0,300),kind);
+ }
+ const blob=await res.blob();
+ if(!blob.size)throw new ApiError('Berkas laporan kosong.',res.status,'','server');
+ return blob;
+}

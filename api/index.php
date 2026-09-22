@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/db.php';
 require __DIR__ . '/repo.php';
+require __DIR__ . '/report.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -31,6 +32,18 @@ function ucp_send(int $status, array $body): never
 {
     http_response_code($status);
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+// Berkas biner dikirim dengan header sendiri; Content-Type JSON yang dipasang
+// di awal digantikan, bukan ditambahkan.
+function ucp_send_file(string $bytes, string $filename, string $mime): never
+{
+    $aman = preg_replace('/[^A-Za-z0-9 ._-]/u', '', $filename) ?: 'laporan';
+    header('Content-Type: ' . $mime);
+    header('Content-Length: ' . strlen($bytes));
+    header(sprintf('Content-Disposition: attachment; filename="%s"', $aman));
+    echo $bytes;
     exit;
 }
 
@@ -59,6 +72,24 @@ try {
     if ($segments === [] || $segments === ['health']) {
         $count = (int) $pdo->query('SELECT COUNT(*) FROM projects')->fetchColumn();
         ucp_send(200, ['ok' => true, 'service' => 'ucp-management-api', 'projects' => $count]);
+    }
+
+    // Laporan disusun di sisi klien lalu dirender di sini menjadi berkas
+    // Office. Isi laporan tidak dihitung ulang di server agar rumusnya tidak
+    // ada dua versi.
+    if ($segments[0] === 'report') {
+        if ($method !== 'POST') {
+            ucp_send(405, ['error' => 'Pembuatan laporan memerlukan metode POST.']);
+        }
+        $spec = ucp_body();
+        $nama = (string) ($spec['filename'] ?? 'laporan');
+        if (($segments[1] ?? '') === 'xlsx') {
+            ucp_send_file(ucp_xlsx($spec), $nama . '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        }
+        if (($segments[1] ?? '') === 'docx') {
+            ucp_send_file(ucp_docx($spec), $nama . '.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        }
+        ucp_send(404, ['error' => 'Format laporan tidak dikenal. Gunakan xlsx atau docx.']);
     }
 
     if ($segments[0] !== 'projects') {

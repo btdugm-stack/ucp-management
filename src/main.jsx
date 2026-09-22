@@ -1,9 +1,10 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
+import {FileSpreadsheet,FileText,LoaderCircle,Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,FileDown,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
 import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
-import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
+import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject,buildReport} from './api.js';
+import {specExcel,specWord} from './report.js';
 import './styles.css';
 
 const AUTOSAVE_MS=1000;
@@ -296,7 +297,7 @@ function App(){
 
  const goStart=async()=>{if(status==='dirty')await saveNow();setView('start')};
 
- const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow,[['usecases','Daftar Use Case'],['modulepreview','Use Case per Modul'],['modules','Rekap per Modul']]],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
+ const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow,[['usecases','Daftar Use Case'],['modulepreview','Use Case per Modul'],['modules','Rekap per Modul']]],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck],['reports','Laporan',FileDown]];
  const badge={dirty:['dirty','Perubahan belum tersimpan'],saving:['dirty','Menyimpan…'],saved:['saved','Tersimpan di database'],offline:['error','Gagal tersimpan — ditahan di browser']}[status]??['saved','Tersimpan'];
  const picker=<input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>;
 
@@ -349,11 +350,12 @@ function App(){
    {tab==='staffing'&&<Staffing s={s} c={calc} setS={setS}/>}
    {tab==='cost'&&<Cost s={s} c={calc} update={update}/>}
    {tab==='feasibility'&&<Feasibility s={s} update={update} c={calc}/>}
+   {tab==='reports'&&<Reports s={s} c={calc} issues={issues}/>}
   </main>
  </div>;
 }
 
-function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',modulepreview:'Use Case per Modul',modules:'Rekap Use Case per Modul',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
+function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',modulepreview:'Use Case per Modul',modules:'Rekap Use Case per Modul',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment',reports:'Export Laporan'}[t]}
 function Card({label,value,sub}){return <div className="card"><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>}
 
 function Dashboard({s,c,go,update}){return <><section className="hero"><div><span className="pill">BASELINE ESTIMATE</span><h2>{s.project.name}</h2><p>{s.project.description}</p></div><div className="hero-number"><small>USE CASE POINT</small><b>{c.ucp.toFixed(2)}</b><span>{c.pm.toFixed(2)} person-month</span></div></section><div className="cards"><Card label="UCP" value={c.ucp.toFixed(2)} sub="Use Case Point"/><Card label="Person Hours" value={fmt(c.ph)} sub={`PHM ${s.params.phm}`}/><Card label="Person-Month" value={c.pm.toFixed(2)} sub="Effort"/><Card label="Duration" value={`${c.duration.toFixed(2)} mo`} sub="3 × PM^(1/3)"/></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Calculation Flow</h3><button onClick={()=>go('calculation')}>Open Engine <ChevronRight size={15}/></button></div><div className="flow"><div><b>{c.uaw.toFixed(0)}</b><small>UAW</small></div><i>+</i><div><b>{c.uucw.toFixed(0)}</b><small>UUCW</small></div><i>×</i><div><b>{c.tcf.toFixed(2)}</b><small>TCF</small></div><i>×</i><div><b>{c.ecf.toFixed(2)}</b><small>ECF</small></div><i>=</i><div className="accent"><b>{c.ucp.toFixed(2)}</b><small>UCP</small></div></div></section><section className="panel"><div className="panel-head"><h3>SDLC Distribution</h3><button onClick={()=>go('planning')}>Edit <ChevronRight size={15}/></button></div>{c.phase.map(p=><div className="barrow" key={p.name}><div><span>{p.name}</span><b>{p.duration.toFixed(2)} mo</b></div><div className="bar"><i style={{width:`${Math.min(100,num(p.weight))}%`}}/></div></div>)}</section></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Scenario Sensitivity</h3><button onClick={()=>go('calculation')}>Configure</button></div><table><caption className="sr-only">Sensitivitas estimasi terhadap PHM dan kapasitas kerja</caption><thead><tr><th scope="col">PHM</th><th scope="col">Capacity</th><th scope="col">Person-Month</th><th scope="col">Duration</th></tr></thead><tbody>{[[20,8,22],[20,10,26],[28,8,22],[28,10,26]].map(x=>{const pm=(c.ucp*x[0])/(x[1]*x[2]);return <tr key={x.join()}><td>{x[0]}</td><td>{x[1]}h × {x[2]}d</td><td>{pm.toFixed(2)}</td><td>{(3*Math.cbrt(pm)).toFixed(2)} mo</td></tr>})}</tbody></table></section><CustomScenario s={s} c={c} update={update}/></div></>}
@@ -585,8 +587,88 @@ function Cost({s,c,update}){return <><div className="cards"><Card label="Total C
 function Feasibility({s,update,c}){return <><div className="cards"><Card label="Technical" value={s.feas.technical}/><Card label="Economic" value={s.feas.economic}/><Card label="Organizational" value={s.feas.organizational}/><Card label="Project Effort" value={`${c.pm.toFixed(2)} PM`}/></div><section className="panel form"><div className="formgrid">{[['technical','Technical Feasibility'],['economic','Economic Feasibility'],['organizational','Organizational Feasibility']].map(([k,l])=><label key={k}>{l}<select value={s.feas[k]} onChange={e=>update(['feas',k],e.target.value)}>{levels.map(x=><option key={x}>{x}</option>)}</select></label>)}<label className="wide">Assessment Notes<textarea value={s.feas.notes} onChange={e=>update(['feas','notes'],e.target.value)} placeholder="Catat asumsi, risiko, evidence, dan mitigasi."/></label></div></section><section className="panel"><h3>Decision Brief</h3><div className="brief"><div><span>Technical</span><b>Can we build it?</b><p>Review technology familiarity, architecture, integration, security, performance, project size and technical risk.</p></div><div><span>Economic</span><b>Should we build it?</b><p>Biaya proyek saat ini {money(c.cost)}. Lanjutkan dengan benefit, NPV, ROI dan break-even sebagai lapisan ekonomi berikutnya.</p></div><div><span>Organizational</span><b>Will they use it?</b><p>Review strategic alignment, sponsor/champion support, user readiness and change/adoption risk.</p></div></div></section></>}
 
 function when(iso){try{const d=new Date(iso);return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short'}).format(d)}catch{return ''}}
+// Halaman ekspor laporan. Isi laporan disusun di report.js dari hasil
+// calculate() yang sama dengan yang tampil di layar, lalu dirender menjadi
+// berkas Office oleh API.
+function Reports({s,c,issues}){
+ const [sibuk,setSibuk]=useState('');
+ const [galat,setGalat]=useState(null);
+ const [terakhir,setTerakhir]=useState(null);
+ const errors=issues.filter(i=>i.level==='error');
+
+ const unduh=async(format,spec,ext)=>{
+  if(sibuk)return;
+  setSibuk(format);setGalat(null);
+  try{
+   const blob=await buildReport(format,spec);
+   download(blob,`${spec.filename}.${ext}`);
+   setTerakhir(`${spec.filename}.${ext}`);
+  }catch(e){setGalat(e)}
+  finally{setSibuk('')}
+ };
+ const excel=()=>unduh('xlsx',specExcel(s,c,issues),'xlsx');
+ const word=()=>unduh('docx',specWord(s,c,issues),'docx');
+
+ const lembar=specExcel(s,c,issues).sheets.map(x=>x.name);
+ const bagian=['Identitas proyek','Ringkasan hasil estimasi','Rantai perhitungan','Distribusi fase',...(s.modules.length?['Rekap per modul aplikasi']:[]),'Rencana sumber daya','Penilaian kelayakan','Catatan pemeriksaan'];
+
+ return <>
+  <div className="cards">
+   <Card label="Use Case Point" value={c.ucp.toFixed(2)}/>
+   <Card label="Effort" value={`${c.pm.toFixed(2)} PM`}/>
+   <Card label="Total Biaya" value={money(c.cost)}/>
+   <Card label="Peringatan" value={issues.length} sub={errors.length?`${errors.length} error`:'tidak ada error'}/>
+  </div>
+
+  {!!errors.length&&<section className="issues has-error" role="status">
+   <b><CircleAlert size={15}/>Laporan tetap dapat diunduh, tetapi angkanya belum valid</b>
+   <ul>{errors.map((i,n)=><li key={n} className="error">{i.message}</li>)}</ul>
+  </section>}
+
+  {galat&&<div className="db-down">
+   <b><CircleAlert size={16}/>{galat.kind==='database'?'Database tidak dapat dihubungi':'Laporan gagal dibuat'}</b>
+   <p>{galat.message}</p>
+   <small>Berkas dihasilkan oleh API, jadi pastikan backend berjalan. Saat pengembangan, jalankan <code>npm run api</code> di terminal terpisah.</small>
+  </div>}
+
+  <div className="grid2">
+   <section className="panel export">
+    <div className="panel-head"><h3><FileSpreadsheet size={17}/>Excel · Data Masukan dan Keluaran</h3></div>
+    <p className="hint">Seluruh data yang diisi beserta hasil perhitungannya, satu lembar per bagian, agar angkanya dapat ditelusuri dan dihitung ulang oleh pembaca.</p>
+    <ul className="sheetlist">{lembar.map(x=><li key={x}>{x}</li>)}</ul>
+    <button className="primary big" onClick={excel} disabled={!!sibuk}>
+     {sibuk==='xlsx'?<><LoaderCircle size={16} className="spin"/>Menyiapkan…</>:<><Download size={16}/>Unduh Excel (.xlsx)</>}
+    </button>
+   </section>
+
+   <section className="panel export">
+    <div className="panel-head"><h3><FileText size={17}/>Word · Ringkasan Hasil Akhir</h3></div>
+    <p className="hint">Ringkasan untuk dibaca dan dilampirkan: hasil akhir, dasar perhitungannya, rencana sumber daya, dan penilaian kelayakan beserta catatan pemeriksaan.</p>
+    <ul className="sheetlist">{bagian.map(x=><li key={x}>{x}</li>)}</ul>
+    <button className="primary big" onClick={word} disabled={!!sibuk}>
+     {sibuk==='docx'?<><LoaderCircle size={16} className="spin"/>Menyiapkan…</>:<><Download size={16}/>Unduh Word (.docx)</>}
+    </button>
+   </section>
+  </div>
+
+  {terakhir&&<p className="hint"><CircleCheck size={14}/> Berkas terakhir yang dibuat: <b>{terakhir}</b>. Periksa folder unduhan browser Anda.</p>}
+  <p className="hint">Angka pada laporan diambil dari perhitungan yang sama dengan yang tampil di aplikasi, sehingga tidak ada kemungkinan laporan dan layar menyajikan hasil berbeda. Untuk cadangan yang dapat dimuat kembali ke aplikasi, gunakan <b>Export</b> JSON pada sidebar.</p>
+ </>;
+}
+
 function fmt(n){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(num(n))}
 function money(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(num(n))}
-function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+// Mencabut URL objek tepat setelah klik membatalkan unduhan yang baru saja
+// dimulai, karena browser belum sempat membaca blob-nya. Pencabutan karena itu
+// ditunda, dan anchor sempat dipasang ke dokumen agar kliknya dihormati.
+function download(blob,name){
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');
+ a.href=url;a.download=name;a.rel='noopener';a.style.display='none';
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
 
 createRoot(document.getElementById('root')).render(<Boundary><App/></Boundary>);
