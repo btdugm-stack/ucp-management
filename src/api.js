@@ -65,3 +65,22 @@ export async function buildReport(format,spec){
  if(!blob.size)throw new ApiError('Berkas laporan kosong.',res.status,'','server');
  return blob;
 }
+
+// Berkas lembar kerja dikirim sebagai badan permintaan mentah, bukan multipart,
+// karena yang dibutuhkan hanya satu berkas tanpa medan lain.
+export async function readSpreadsheet(file){
+ let res;
+ try{
+  res=await fetch(`${BASE}/import/xlsx`,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+ }catch(cause){
+  throw new ApiError('Server API tidak dapat dihubungi sama sekali.',0,String(cause?.message||cause),'backend');
+ }
+ const teks=await res.text();
+ let body=null;
+ try{body=teks?JSON.parse(teks):null}catch{}
+ if(!res.ok){
+  const kind=res.status===503?'database':(res.status===502||res.status===504||res.status===404)?'backend':'server';
+  throw new ApiError(body?.error||`Berkas gagal dibaca (status ${res.status}).`,res.status,body?.detail||teks.slice(0,300),kind);
+ }
+ return body?.sheets??[];
+}

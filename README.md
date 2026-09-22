@@ -92,6 +92,41 @@ src/
 test/         unit test Node
 ```
 
+## Batch use case lewat Excel
+
+Halaman **Daftar Use Case** memuat baris *Batch Excel* dengan tiga tindakan:
+
+- **Unduh Template** — berkas .xlsx berisi kolom yang diharapkan, dua baris
+  contoh, dan lembar *Petunjuk* yang menjelaskan setiap kolom.
+- **Export Use Case** — seluruh use case proyek dalam format yang sama,
+  sehingga hasilnya dapat disunting lalu diimpor kembali.
+- **Import dari Excel** — membaca berkas .xlsx dan menampilkan **pratinjau**
+  berisi rencana perubahan. Tidak ada data yang berubah sebelum pratinjau itu
+  diterapkan.
+
+Kolom yang dikenali: Kode, Nama, Modul, Actor, Transaksi, Kompleksitas, dan
+Override. Urutannya boleh berbeda dan kolom tambahan diabaikan, karena yang
+dicocokkan adalah nama pada baris judul. Beberapa penamaan lain juga diterima,
+misalnya `ID` untuk Kode atau `Transactions` untuk Transaksi.
+
+Aturan yang berlaku saat impor:
+
+- Kode yang cocok dengan use case yang sudah ada **memperbarui** baris itu;
+  kode baru atau kosong **menambah** baris, dengan kode berurutan bila kosong.
+- Modul dicocokkan lewat kode, nama, atau gabungan `M1 · Nama Modul`. Modul
+  yang belum ada dibuat otomatis dan disebutkan pada pratinjau.
+- Kompleksitas tetap diturunkan dari jumlah transaksi, kecuali kolom Override
+  bernilai Ya.
+- Sel kosong pada kolom yang **ada** berarti nilai kosong, bukan "biarkan
+  seperti semula". Kolom yang **tidak ada sama sekali** tidak diubah; bila
+  kolom Modul tidak ada, seluruh baris masuk ke modul yang sedang aktif.
+- Baris kosong dan baris total hasil ekspor dilewati tanpa membatalkan impor.
+
+Pembacaan .xlsx ditangani `api/spreadsheet.php`, juga memakai ZipArchive bawaan
+PHP. Berkas dari Excel, LibreOffice, maupun Google Sheets ditangani karena
+ketiganya menulis teks dengan cara berbeda: sharedStrings, inline string, atau
+hasil rumus.
+
 ## Laporan
 
 Menu **Laporan** pada sidebar menghasilkan dua berkas dari proyek yang sedang
@@ -123,6 +158,7 @@ menghitung, sehingga tidak ada rumus yang ditulis dua kali dalam dua bahasa.
 | POST | `/api/projects/{id}/duplicate` | menggandakan proyek |
 | POST | `/api/report/xlsx` | merender lembar kerja menjadi berkas .xlsx |
 | POST | `/api/report/docx` | merender blok dokumen menjadi berkas .docx |
+| POST | `/api/import/xlsx` | membaca berkas .xlsx menjadi daftar baris |
 
 ## Catatan rancangan
 

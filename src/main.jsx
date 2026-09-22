@@ -3,8 +3,9 @@ import {createRoot} from 'react-dom/client';
 import {FileSpreadsheet,FileText,LoaderCircle,Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,FileDown,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
 import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
-import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject,buildReport} from './api.js';
+import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject,buildReport,readSpreadsheet} from './api.js';
 import {specExcel,specWord} from './report.js';
+import {specUseCaseSheet,parseUseCaseSheet,applyUseCaseImport} from './usecaseio.js';
 import './styles.css';
 
 const AUTOSAVE_MS=1000;
@@ -405,6 +406,10 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
  const lepas=c.moduleRows.find(r=>!r.assigned);
  const subtotal=tampil.reduce((a,u)=>a+(ucWeights[effectiveType(u)]||0),0);
  const namaActor=s.actors.map(a=>(a.name||'').trim()).filter(Boolean);
+ const berkasRef=useRef(null);
+ const [sibuk,setSibuk]=useState('');
+ const [galat,setGalat]=useState(null);
+ const [pratinjau,setPratinjau]=useState(null);
 
  const add=()=>setS(p=>({...p,useCases:[...p.useCases,newUseCase(p.useCases,resolveActiveModule(p.modules,p.useCases,active))]}));
  const patch=(id,k,v)=>setS(p=>({...p,useCases:p.useCases.map(x=>x.id===id?{...x,[k]:v}:x)}));
@@ -419,6 +424,29 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
   const pesan=dipakai?`Hapus modul "${name}"? ${dipakai} use case di dalamnya tidak ikut terhapus, hanya dilepas dari modul.`:`Hapus modul "${name}"?`;
   if(confirm(pesan))setS(p=>({...p,modules:p.modules.filter(m=>m.key!==key),useCases:p.useCases.map(u=>u.module===key?{...u,module:''}:u)}));
  };
+
+ const unduh=async(jenis,spec)=>{
+  if(sibuk)return;
+  setSibuk(jenis);setGalat(null);
+  try{download(await buildReport('xlsx',spec),`${spec.filename}.xlsx`)}
+  catch(e){setGalat(e)}
+  finally{setSibuk('')}
+ };
+ const bacaBerkas=async e=>{
+  const file=e.target.files?.[0];e.target.value='';
+  if(!file)return;
+  setSibuk('import');setGalat(null);setPratinjau(null);
+  try{
+   const sheets=await readSpreadsheet(file);
+   const hasil=parseUseCaseSheet(sheets,s,{defaultModule:active});
+   if(hasil.error){setGalat({message:hasil.error,kind:'berkas'});return}
+   setPratinjau({...hasil,namaBerkas:file.name});
+  }catch(e){setGalat(e)}
+  finally{setSibuk('')}
+ };
+ // Perubahan baru menyentuh state setelah pengguna meninjau rencananya, agar
+ // berkas yang salah kolom tidak diam-diam menimpa data yang sudah ada.
+ const terapkan=()=>{setS(p=>applyUseCaseImport(p,pratinjau));setPratinjau(null)};
 
  const judul=s.modules.length?(aktif?`Use Cases · ${[aktif.code,aktif.name].filter(Boolean).join(' · ')}`:'Use Cases · Tanpa modul'):'Use Cases';
  return <>
@@ -445,11 +473,58 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
    <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul.</p>
   </section>}
 
+  {galat&&<div className="db-down">
+   <b><CircleAlert size={16}/>{galat.kind==='database'?'Database tidak dapat dihubungi':galat.kind==='berkas'?'Berkas tidak dapat ditafsirkan':'Gagal memproses berkas'}</b>
+   <p>{galat.message}</p>
+   {galat.kind!=='berkas'&&<small>Pembacaan dan penulisan berkas Excel dilakukan oleh API, jadi pastikan backend berjalan. Saat pengembangan, jalankan <code>npm run api</code> di terminal terpisah.</small>}
+  </div>}
+
+  {pratinjau&&<section className="panel pratinjau">
+   <div className="panel-head"><h3>Pratinjau Impor</h3><span className="total">{pratinjau.namaBerkas} · lembar {pratinjau.sheetName}</span></div>
+   <div className="cards">
+    <Card label="Ditambahkan" value={pratinjau.summary.add}/>
+    <Card label="Diperbarui" value={pratinjau.summary.update}/>
+    <Card label="Dilewati" value={pratinjau.summary.skip}/>
+    <Card label="Modul Baru" value={pratinjau.summary.modules}/>
+   </div>
+   {!pratinjau.adaKolomModul&&<p className="hint">Berkas tidak memuat kolom <b>Modul</b>, sehingga seluruh baris ditempatkan ke {aktif?<>modul aktif <b>{[aktif.code,aktif.name].filter(Boolean).join(' · ')}</b></>:<b>tanpa modul</b>}.</p>}
+   <table><caption className="sr-only">Rencana perubahan dari berkas yang diimpor</caption>
+    <thead><tr><th scope="col">Baris</th><th scope="col">Tindakan</th><th scope="col">Kode</th><th scope="col">Nama</th><th scope="col">Modul</th><th scope="col">Actor</th><th scope="col">Transaksi</th><th scope="col">Kompleksitas</th><th scope="col">Bobot</th></tr></thead>
+    <tbody>{pratinjau.rows.map((r,i)=><tr key={i} className={r.action==='skip'?'loose':''}>
+     <td>{r.nomor}</td>
+     <td><span className={`aksi ${r.action}`}>{r.action==='add'?'Tambah':r.action==='update'?'Perbarui':'Lewati'}</span></td>
+     <td>{r.code||<span className="muted">—</span>}</td>
+     <td>{r.name||<span className="muted">—</span>}</td>
+     <td colSpan={r.action==='skip'?5:1}>{r.action==='skip'?<small className="flag">{r.reason}</small>:(r.modulLabel||'Tanpa modul')}</td>
+     {r.action!=='skip'&&<><td>{r.actor||<span className="muted">—</span>}</td><td>{r.transactions}</td><td>{r.type}{r.override&&<small className="flag">manual</small>}</td><td><b>{r.weight}</b></td></>}
+    </tr>)}</tbody></table>
+   {!pratinjau.rows.length&&<p className="hint">Tidak ada baris data yang terbaca di bawah baris judul.</p>}
+   <div className="head-buttons pratinjau-aksi">
+    <button onClick={()=>setPratinjau(null)}>Batal</button>
+    <button className="primary" onClick={terapkan} disabled={!pratinjau.summary.add&&!pratinjau.summary.update}>
+     <CircleCheck size={15}/>Terapkan {pratinjau.summary.add+pratinjau.summary.update} baris
+    </button>
+   </div>
+  </section>}
+
   <section className="panel">
    <div className="panel-head"><h3>{judul}</h3><div className="head-buttons">
     <button onClick={addModule}><Boxes size={15}/>Add Modul</button>
     <button className="primary" onClick={add}><Plus size={15}/>Add Use Case{aktif&&<span className="target">→ {aktif.code||aktif.name}</span>}</button>
    </div></div>
+   <div className="batchbar">
+    <span>Batch Excel</span>
+    <button onClick={()=>unduh('template',specUseCaseSheet(s,{template:true}))} disabled={!!sibuk}>
+     {sibuk==='template'?<LoaderCircle size={14} className="spin"/>:<FileSpreadsheet size={14}/>}Unduh Template
+    </button>
+    <button onClick={()=>unduh('export',specUseCaseSheet(s))} disabled={!!sibuk}>
+     {sibuk==='export'?<LoaderCircle size={14} className="spin"/>:<Download size={14}/>}Export Use Case
+    </button>
+    <button className="primary" onClick={()=>berkasRef.current?.click()} disabled={!!sibuk}>
+     {sibuk==='import'?<LoaderCircle size={14} className="spin"/>:<Upload size={14}/>}Import dari Excel
+    </button>
+    <input ref={berkasRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={bacaBerkas} hidden aria-hidden="true" tabIndex={-1}/>
+   </div>
    <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption>
    <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
    <tbody>{tampil.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);const asing=u.actor&&!namaActor.includes(u.actor.trim());return <tr key={u.id}>
@@ -466,7 +541,7 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
     <td><b>{ucWeights[eff]}</b>{u.override&&u.type!==derived&&<small className="flag">≠ {derived}</small>}</td>
     <td><button className="icon" aria-label={`Hapus use case ${u.name}`} onClick={()=>del(u.id,u.name)}><Trash2 size={15}/></button></td>
    </tr>})}</tbody></table>
-   {!tampil.length&&<p className="hint">{s.modules.length?<>Belum ada use case pada {aktif?`modul ${[aktif.code,aktif.name].filter(Boolean).join(' · ')}`:'kelompok tanpa modul'}. Tekan <b>Add Use Case</b> untuk mulai mengisi.</>:<>Belum ada use case. UUCW akan bernilai 0.</>}</p>}
+   {!tampil.length&&<p className="hint">{s.modules.length?<>Belum ada use case pada {aktif?`modul ${[aktif.code,aktif.name].filter(Boolean).join(' · ')}`:'kelompok tanpa modul'}. Tekan <b>Add Use Case</b>, atau isi banyak sekaligus lewat <b>Import dari Excel</b>.</>:<>Belum ada use case. UUCW akan bernilai 0.</>}</p>}
    {!namaActor.length&&<p className="hint">Belum ada actor pada <b>Actor Analysis</b>, sehingga kolom Actor belum dapat diisi. <button className="linklike" onClick={()=>go('actors')}>Buka Actor Analysis<ChevronRight size={13}/></button></p>}
    <div className="total">{s.modules.length?<>UUCW modul <b>{subtotal}</b> · seluruh proyek <b>{c.uucw}</b></>:<>UUCW <b>{c.uucw}</b></>}</div>
    <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Penempatan seluruh use case dapat ditinjau sekaligus pada submenu <b>Use Case per Modul</b>.</p>

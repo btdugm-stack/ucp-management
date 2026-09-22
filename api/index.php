@@ -9,6 +9,7 @@ declare(strict_types=1);
 require __DIR__ . '/db.php';
 require __DIR__ . '/repo.php';
 require __DIR__ . '/report.php';
+require __DIR__ . '/spreadsheet.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -90,6 +91,30 @@ try {
             ucp_send_file(ucp_docx($spec), $nama . '.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
         }
         ucp_send(404, ['error' => 'Format laporan tidak dikenal. Gunakan xlsx atau docx.']);
+    }
+
+    // Lembar kerja yang diunggah dibaca menjadi daftar baris apa adanya.
+    // Penafsiran kolom dan pencocokan dengan data proyek dilakukan di klien,
+    // di tempat aturan use case sudah berada.
+    if ($segments[0] === 'import' && ($segments[1] ?? '') === 'xlsx') {
+        if ($method !== 'POST') {
+            ucp_send(405, ['error' => 'Impor memerlukan metode POST.']);
+        }
+        $bytes = file_get_contents('php://input');
+        if ($bytes === false || strlen($bytes) < 4) {
+            ucp_send(400, ['error' => 'Berkas yang diunggah kosong.']);
+        }
+        if (strlen($bytes) > 8 * 1024 * 1024) {
+            ucp_send(413, ['error' => 'Berkas terlalu besar. Batas 8 MB.']);
+        }
+        if (substr($bytes, 0, 2) !== 'PK') {
+            ucp_send(400, ['error' => 'Berkas bukan .xlsx. Simpan ulang sebagai Excel Workbook (.xlsx), bukan .xls atau .csv.']);
+        }
+        try {
+            ucp_send(200, ['sheets' => ucp_read_xlsx($bytes)]);
+        } catch (RuntimeException $e) {
+            ucp_send(400, ['error' => $e->getMessage()]);
+        }
     }
 
     if ($segments[0] !== 'projects') {
