@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test \"test/*.test.js\"",
-    "api": "php -S 127.0.0.1:8787 -t api api/index.php"
+    "api": "node scripts/api.mjs"
   },
   "dependencies": {
     "lucide-react": "1.47.0",

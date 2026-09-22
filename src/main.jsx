@@ -121,9 +121,11 @@ function StartScreen({onOpen,onCreate,onImportClick,legacy,onMigrate,onDismissLe
     </div>
 
     {error&&<div className="db-down">
-     <b><CircleAlert size={16}/>Database tidak dapat dihubungi</b>
+     <b><CircleAlert size={16}/>{error.kind==='database'?'Database tidak dapat dihubungi':'Server API tidak dapat dihubungi'}</b>
      <p>{error.message}</p>
-     <small>Jalankan MySQL dan Apache dari Laragon, lalu muat ulang daftar. Saat pengembangan, pastikan juga <code>npm run api</code> sedang berjalan.</small>
+     <small>{error.kind==='database'
+      ?<>Nyalakan <b>MySQL</b> dari Laragon, lalu muat ulang daftar.</>
+      :<>Backend PHP belum berjalan. Saat pengembangan, jalankan <code>npm run api</code> di terminal terpisah. Pada mode produksi, nyalakan <b>Apache</b> dari Laragon.</>}</small>
      <button onClick={refresh}><RotateCcw size={14}/>Coba lagi</button>
     </div>}
 

@@ -6,8 +6,11 @@
 // di vite.config.js. Tidak ada host yang perlu ditulis di kode.
 const BASE=(import.meta.env?.VITE_API_BASE??'api').replace(/\/+$/,'');
 
+// kind memisahkan "backend PHP tidak jalan" dari "MySQL tidak jalan".
+// Keduanya tampak serupa dari sisi browser padahal langkah perbaikannya
+// berbeda, dan menyebut keduanya sebagai masalah database menyesatkan.
 export class ApiError extends Error{
- constructor(message,status,detail){super(message);this.name='ApiError';this.status=status;this.detail=detail}
+ constructor(message,status,detail,kind='server'){super(message);this.name='ApiError';this.status=status;this.detail=detail;this.kind=kind}
 }
 
 async function request(path,options={}){
@@ -16,14 +19,19 @@ async function request(path,options={}){
   res=await fetch(`${BASE}${path}`,{headers:{'Content-Type':'application/json'},...options});
  }catch(cause){
   // fetch hanya menolak saat jaringan atau server benar-benar tidak terjangkau.
-  throw new ApiError('Server API tidak dapat dihubungi. Pastikan Apache/PHP sedang berjalan.',0,String(cause?.message||cause));
+  throw new ApiError('Server API tidak dapat dihubungi sama sekali.',0,String(cause?.message||cause),'backend');
  }
  const text=await res.text();
  let body=null;
  try{body=text?JSON.parse(text):null}catch{/* biarkan null, ditangani di bawah */}
  if(!res.ok){
-  const message=body?.error||`Permintaan gagal dengan status ${res.status}.`;
-  throw new ApiError(message,res.status,body?.detail||text.slice(0,300));
+  // 502/504 datang dari proxy atau web server ketika PHP tidak menjawab;
+  // 503 datang dari api/index.php sendiri ketika MySQL tidak terjangkau.
+  const kind=res.status===503?'database':(res.status===502||res.status===504||res.status===404)?'backend':'server';
+  const fallback=kind==='backend'
+   ?`Backend PHP tidak menjawab (status ${res.status}).`
+   :`Permintaan gagal dengan status ${res.status}.`;
+  throw new ApiError(body?.error||fallback,res.status,body?.detail||text.slice(0,300),kind);
  }
  if(body===null)throw new ApiError('Balasan server bukan JSON yang valid.',res.status,text.slice(0,300));
  return body;

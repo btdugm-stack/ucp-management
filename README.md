@@ -16,6 +16,9 @@ autentikasi.
 | MySQL | 8.4 | database dan tabel dibuat otomatis |
 | Node.js | 22 | hanya untuk build dan pengembangan |
 
+Tidak perlu menambahkan PHP atau MySQL ke PATH; skrip proyek mencarinya
+sendiri di folder Laragon.
+
 Seluruhnya sudah tersedia pada pemasangan Laragon standar.
 
 ## Menjalankan
@@ -36,16 +39,27 @@ pertama kali dipanggil — tidak ada langkah migrasi manual.
 
 ### Pengembangan
 
-Jalankan dua proses berdampingan:
+Jalankan dua proses berdampingan, masing-masing di terminal sendiri:
 
 ```
 npm run api     # REST API PHP di 127.0.0.1:8787
 npm run dev     # Vite di 127.0.0.1:5173, meneruskan /api ke backend
 ```
 
-MySQL harus tetap menyala. Untuk mengarahkan proxy ke Apache alih-alih server
-bawaan PHP, setel `UCP_API_PROXY`, misalnya
-`UCP_API_PROXY=http://localhost/ucp-management-local`.
+MySQL harus tetap menyala. Bila `npm run api` belum berjalan, antarmuka
+menampilkan kartu "Server API tidak dapat dihubungi" alih-alih daftar proyek.
+
+`npm run api` **tidak memerlukan PHP pada PATH**. Skrip `scripts/api.mjs`
+mencari sendiri `php.exe`: mula-mula dari variabel `UCP_PHP`, lalu PATH, lalu
+folder `C:\laragon\bin\php\*` dan `C:\xampp\php`. Untuk menunjuk PHP tertentu:
+
+```
+$env:UCP_PHP = "C:\laragon\bin\php\php-8.3.16-Win32-vs16-x64\php.exe"
+npm run api
+```
+
+Untuk mengarahkan proxy Vite ke Apache alih-alih server bawaan PHP, setel
+`UCP_API_PROXY`, misalnya `UCP_API_PROXY=http://localhost/ucp-management-local`.
 
 ### Pengujian
 
