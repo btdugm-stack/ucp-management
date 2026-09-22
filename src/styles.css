@@ -119,3 +119,7 @@ tfoot b{color:#182033;font-size:13px}
  .project-list li,.legacy{flex-direction:column;align-items:flex-start}
  .projects-head{flex-direction:column;align-items:flex-start}
 }
+
+.formgrid.tight{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.formgrid.tight input{width:100%}
+.panel-head .pill{font-size:9px;letter-spacing:.1em;padding:5px 9px}

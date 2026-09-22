@@ -138,3 +138,45 @@ test('seed bawaan tidak menghasilkan satu pun error validasi', () => {
  const errors=validate(seed,calculate(seed)).filter(i=>i.level==='error');
  assert.deepEqual(errors,[]);
 });
+
+test('kalkulasi custom: Mandays = PM x durasi x working days', () => {
+ const s=newState();
+ s.custom={workingDays:22,projectDays:120};
+ const c=calculate(s);
+ near(c.mandays,c.pm*c.duration*22);
+ near(c.man,c.mandays/120);
+ // nilai konkret dari data contoh, sebagai pagar terhadap perubahan rumus
+ near(c.mandays,270.84,0.01);
+ near(c.man,2.257,0.001);
+});
+
+test('kalkulasi custom memakai PM dan durasi dari perhitungan default', () => {
+ const s=newState();
+ s.custom={workingDays:20,projectDays:100};
+ const c=calculate(s);
+ // M adalah durasi terhitung 3 x PM^(1/3), bukan target bulan
+ near(c.duration,3*Math.cbrt(c.pm));
+ near(c.mandays,c.pm*(3*Math.cbrt(c.pm))*20);
+ assert.notEqual(Math.round(c.mandays),Math.round(c.pm*s.params.targetMonths*20));
+});
+
+test('Hari Durasi Project nol menghasilkan 0, bukan Infinity', () => {
+ const c=calculate({...newState(),custom:{workingDays:22,projectDays:0}});
+ assert.ok(Number.isFinite(c.man));
+ assert.equal(c.man,0);
+ assert.ok(Number.isFinite(c.mandays));
+});
+
+test('custom yang hilang atau rusak tidak merusak perhitungan lain', () => {
+ for(const custom of [undefined,null,'x',{},{workingDays:'a',projectDays:NaN}]){
+  const c=calculate({...newState(),custom});
+  for(const k of ['ucp','pm','duration','mandays','man','cost'])
+   assert.ok(Number.isFinite(c[k]),`${k} tidak finite untuk custom=${JSON.stringify(custom)}`);
+ }
+});
+
+test('validate memperingatkan Hari Durasi Project nol', () => {
+ const s={...newState(),custom:{workingDays:22,projectDays:0}};
+ const issues=validate(s,calculate(s));
+ assert.ok(issues.some(i=>i.level==='warn'&&/Hari Durasi Project/i.test(i.message)));
+});

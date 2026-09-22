@@ -120,6 +120,19 @@ perubahan ditahan sebagai draft di browser dan ditawarkan untuk dipulihkan saat
 proyek dibuka kembali, sehingga database yang mati tidak berarti kehilangan
 pekerjaan. Gunakan **Export** untuk cadangan di luar database.
 
+**Kalkulasi custom** pada Dashboard menyediakan skenario alternatif di samping
+tabel Scenario Sensitivity. PM dan M diambil dari perhitungan default — M
+adalah durasi terhitung `3 × PM^(1/3)` — sedangkan Working Days dan Hari Durasi
+Project diisi manual:
+
+```
+Mandays = PM × M × Working Days
+Man     = Mandays ÷ Hari Durasi Project
+```
+
+Kedua angka manual itu tersimpan per proyek pada kolom `custom_working_days`
+dan `custom_project_days`.
+
 **Seluruh masukan divalidasi dua kali**, di browser melalui `normalize()` dan di
 server sebelum menyentuh SQL. Pembagian dijaga agar parameter bernilai nol
 menghasilkan 0, bukan `Infinity`.

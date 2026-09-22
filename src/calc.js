@@ -33,10 +33,19 @@ export function calculate(s){
  const phase=s.phases.map(p=>({...p,duration:duration*num(p.weight)/100}));
  const targetMonths=clamp(s.params.targetMonths,0);
  const fte=div(pm,targetMonths);
+ // Skenario custom: mengubah effort menjadi mandays memakai jumlah hari kerja
+ // yang ditentukan sendiri, lalu membaginya dengan panjang proyek dalam hari
+ // untuk memperoleh jumlah orang. PM dan durasi tetap berasal dari perhitungan
+ // default, hanya dua angka pembagi yang diisi manual.
+ const customWorkingDays=clamp(s.custom?.workingDays??22,0,31);
+ const customProjectDays=clamp(s.custom?.projectDays??0,0,1e5);
+ const mandays=pm*duration*customWorkingDays;
+ const man=div(mandays,customProjectDays);
+ const durationDays=duration*customWorkingDays;
  const resourceCost=s.roles.reduce((a,r)=>a+num(r.rate)*num(r.fte)*num(r.allocation)/100*duration,0);
  const extraCost=extraKeys.reduce((a,[k])=>a+num(s.extras?.[k]),0);
  const cost=resourceCost+extraCost;
- return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost};
+ return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays};
 }
 
 // Aturan yang dulu hanya ditulis di teks hint sekarang ditegakkan di sini
@@ -54,6 +63,7 @@ export function validate(s,c){
  const forced=s.useCases.filter(u=>u.override&&u.type!==deriveComplexity(u.transactions));
  if(forced.length)add('warn',`${forced.length} use case memakai override manual yang berbeda dari klasifikasi transaksi: ${forced.map(u=>u.code||u.name).join(', ')}.`);
  if(!s.roles.length)add('warn','Belum ada peran pada staffing, sehingga biaya sumber daya bernilai 0.');
+ if(c.customProjectDays<=0)add('warn','Hari Durasi Project pada kalkulasi custom bernilai 0, sehingga jumlah Man tidak dapat dihitung.');
  if(c.targetMonths>0&&c.duration>0){
   const gap=Math.abs(c.duration-c.targetMonths);
   if(gap/c.targetMonths>.2)add('warn',`Durasi terhitung ${c.duration.toFixed(2)} bulan berbeda jauh dari target ${c.targetMonths} bulan. Rencana fase dan rencana staffing memakai dasar yang berbeda.`);

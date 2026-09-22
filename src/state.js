@@ -22,6 +22,7 @@ export const seed={
  phases:[{name:'Planning',weight:15},{name:'Analysis',weight:20},{name:'Design',weight:35},{name:'Implementation',weight:30}],
  roles:[{id:'r1',name:'Project Manager',rate:15000000,fte:1,allocation:20},{id:'r2',name:'Business Analyst',rate:12000000,fte:1,allocation:80},{id:'r3',name:'System Analyst',rate:15000000,fte:1,allocation:100},{id:'r4',name:'Developer',rate:12000000,fte:2,allocation:100},{id:'r5',name:'QA Engineer',rate:10000000,fte:1,allocation:50}],
  extras:{infrastructure:0,license:0,training:0,migration:0},
+ custom:{workingDays:22,projectDays:120},
  feas:{technical:'Medium',economic:'Medium',organizational:'Medium',notes:''}
 };
 export const newState=()=>structuredClone(seed);
@@ -63,13 +64,17 @@ export function normalize(raw){
  const roles=arr(raw.roles).map(r=>({id:str(r?.id)||uid(),name:str(r?.name,'Role'),rate:clamp(r?.rate,0,1e12),fte:clamp(r?.fte,0,999),allocation:clamp(r?.allocation,0,100)}));
  const extras={};
  for(const [k] of extraKeys)extras[k]=clamp(raw.extras?.[k],0,1e12);
+ const custom={
+  workingDays:clamp(raw.custom?.workingDays??d.custom.workingDays,1,31),
+  projectDays:clamp(raw.custom?.projectDays??d.custom.projectDays,1,1e5)
+ };
  const feas={
   technical:pick(raw.feas?.technical,levels,'Medium'),
   economic:pick(raw.feas?.economic,levels,'Medium'),
   organizational:pick(raw.feas?.organizational,levels,'Medium'),
   notes:str(raw.feas?.notes)
  };
- const out={version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,feas};
+ const out={version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,custom,feas};
  if(typeof raw.savedAt==='string')out.savedAt=raw.savedAt;
  // Id baris database dibawa apa adanya bila ada, supaya state hasil muat
  // dari API tetap tahu proyek mana yang sedang dibuka.

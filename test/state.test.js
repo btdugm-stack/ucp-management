@@ -124,3 +124,10 @@ test('savedAt dipertahankan lewat normalisasi bila berupa string', () => {
  assert.ok(!('savedAt' in normalize({...newState(),savedAt:12345})));
  assert.ok(!('savedAt' in normalize(newState())));
 });
+
+test('parameter kalkulasi custom dijepit saat dimuat', () => {
+ assert.deepEqual(normalize({}).custom,{workingDays:22,projectDays:120});
+ assert.deepEqual(normalize({custom:{workingDays:999,projectDays:-3}}).custom,{workingDays:31,projectDays:1});
+ assert.deepEqual(normalize({custom:'rusak'}).custom,{workingDays:22,projectDays:120});
+ assert.deepEqual(emptyProject().custom,{workingDays:22,projectDays:120});
+});

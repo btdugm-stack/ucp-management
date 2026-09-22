@@ -156,6 +156,10 @@ function ucp_get_project(PDO $pdo, int $id): ?array
             'training'       => (float) $p['cost_training'],
             'migration'      => (float) $p['cost_migration'],
         ],
+        'custom' => [
+            'workingDays' => (float) $p['custom_working_days'],
+            'projectDays' => (float) $p['custom_project_days'],
+        ],
         'feas' => [
             'technical'      => $p['feas_technical'],
             'economic'       => $p['feas_economic'],
@@ -210,13 +214,15 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
     $params = is_array($state['params'] ?? null) ? $state['params'] : [];
     $extras = is_array($state['extras'] ?? null) ? $state['extras'] : [];
     $feas   = is_array($state['feas'] ?? null) ? $state['feas'] : [];
+    $custom = is_array($state['custom'] ?? null) ? $state['custom'] : [];
 
     $pdo->prepare(
         'UPDATE projects SET code = ?, name = ?, sponsor = ?, owner = ?, manager = ?, description = ?,
                 start_date = ?, target_date = ?, status = ?,
                 phm = ?, hours_per_day = ?, days_per_month = ?, target_months = ?,
                 feas_technical = ?, feas_economic = ?, feas_organizational = ?, feas_notes = ?,
-                cost_infrastructure = ?, cost_license = ?, cost_training = ?, cost_migration = ?
+                cost_infrastructure = ?, cost_license = ?, cost_training = ?, cost_migration = ?,
+                custom_working_days = ?, custom_project_days = ?
          WHERE id = ?'
     )->execute([
         ucp_str($p['code'] ?? '', 50),
@@ -240,6 +246,8 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
         ucp_num($extras['license'] ?? null, 0, 1e12),
         ucp_num($extras['training'] ?? null, 0, 1e12),
         ucp_num($extras['migration'] ?? null, 0, 1e12),
+        ucp_num($custom['workingDays'] ?? null, 1, 31, 22),
+        ucp_num($custom['projectDays'] ?? null, 1, 1e5, 120),
         $id,
     ]);
 

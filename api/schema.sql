@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS projects (
   cost_training       DECIMAL(18,2) NOT NULL DEFAULT 0,
   cost_migration      DECIMAL(18,2) NOT NULL DEFAULT 0,
 
+  custom_working_days DECIMAL(6,2)  NOT NULL DEFAULT 22,
+  custom_project_days DECIMAL(10,2) NOT NULL DEFAULT 120,
+
   created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

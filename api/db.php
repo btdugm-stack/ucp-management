@@ -44,6 +44,7 @@ function ucp_migrate(PDO $pdo): void
 {
     $exists = $pdo->query("SHOW TABLES LIKE 'projects'")->fetch();
     if ($exists) {
+        ucp_add_missing_columns($pdo);
         return;
     }
     $sql = file_get_contents(__DIR__ . '/schema.sql');
@@ -54,5 +55,27 @@ function ucp_migrate(PDO $pdo): void
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
         $pdo->exec($statement);
+    }
+}
+
+/**
+ * Menambahkan kolom yang belum ada pada database yang terlanjur dibuat oleh
+ * versi sebelumnya. schema.sql hanya dijalankan saat tabel belum ada, jadi
+ * tanpa langkah ini pemasangan lama akan kehilangan kolom baru.
+ */
+function ucp_add_missing_columns(PDO $pdo): void
+{
+    $wanted = [
+        'custom_working_days' => 'DECIMAL(6,2) NOT NULL DEFAULT 22',
+        'custom_project_days' => 'DECIMAL(10,2) NOT NULL DEFAULT 120',
+    ];
+    $present = [];
+    foreach ($pdo->query('SHOW COLUMNS FROM projects')->fetchAll() as $column) {
+        $present[$column['Field']] = true;
+    }
+    foreach ($wanted as $name => $definition) {
+        if (!isset($present[$name])) {
+            $pdo->exec(sprintf('ALTER TABLE projects ADD COLUMN `%s` %s', $name, $definition));
+        }
     }
 }
