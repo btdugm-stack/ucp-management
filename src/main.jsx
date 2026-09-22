@@ -1,0 +1,224 @@
+import React,{useMemo,useState,useEffect,useRef} from 'react';
+import {createRoot} from 'react-dom/client';
+import {LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck} from 'lucide-react';
+import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType} from './calc.js';
+import {load,save,newState,normalize,nextCode,uid,statuses,levels,readStored,clearStored} from './state.js';
+import './styles.css';
+
+const AUTOSAVE_MS=600;
+
+// Input numerik yang menerima ketikan bebas tapi tidak pernah meneruskan nilai
+// kosong atau di luar rentang ke state. Ini pertahanan lapis pertama terhadap
+// pembagian nol dan rating di luar skala; calc.js menjaga lapis keduanya.
+function NumInput({value,min,max,step,onCommit,...rest}){
+ const [draft,setDraft]=useState(null);
+ const commit=raw=>{if(raw==='')return;const n=Number(raw);if(Number.isFinite(n))onCommit(clamp(n,min,max))};
+ return <input type="number" min={min} max={max} step={step} value={draft??String(value)}
+  onChange={e=>{setDraft(e.target.value);commit(e.target.value)}}
+  onBlur={()=>{if(draft!==null){const n=Number(draft);onCommit(draft===''||!Number.isFinite(n)?value:clamp(n,min,max))}setDraft(null)}} {...rest}/>;
+}
+
+// Tanpa boundary, satu error render membuat layar putih; dan karena state yang
+// memicunya ikut tersimpan, aplikasi tidak bisa dibuka lagi. Layar ini selalu
+// menyediakan jalan keluar: unduh cadangan mentah, atau bersihkan storage.
+class Boundary extends React.Component{
+ state={error:null};
+ static getDerivedStateFromError(error){return {error}}
+ render(){
+  if(!this.state.error)return this.props.children;
+  const backup=()=>{const raw=readStored();download(new Blob([raw??'{}'],{type:'application/json'}),'ucp-backup-rusak.json')};
+  const recover=()=>{clearStored();location.reload()};
+  return <div className="crash"><div>
+   <TriangleAlert size={34}/>
+   <h1>Aplikasi gagal dimuat</h1>
+   <p>Terjadi kesalahan saat merender data proyek. Data yang tersimpan tidak dihapus otomatis. Unduh cadangannya lebih dulu, lalu bersihkan penyimpanan untuk memulai dari data contoh.</p>
+   <pre>{String(this.state.error?.message||this.state.error)}</pre>
+   <div className="crash-actions">
+    <button onClick={backup}><Download size={15}/>Unduh cadangan data</button>
+    <button className="primary" onClick={recover}><RotateCcw size={15}/>Bersihkan & mulai ulang</button>
+   </div>
+  </div></div>;
+ }
+}
+
+function Issues({items}){
+ if(!items.length)return null;
+ const errors=items.filter(i=>i.level==='error');
+ return <section className={`issues ${errors.length?'has-error':''}`} role="status">
+  <b>{errors.length?<CircleAlert size={15}/>:<TriangleAlert size={15}/>}{errors.length?`${errors.length} masalah menghalangi estimasi yang valid`:'Perlu diperiksa'}</b>
+  <ul>{items.map((i,n)=><li key={n} className={i.level}>{i.message}</li>)}</ul>
+ </section>;
+}
+
+function App(){
+ const [s,setS]=useState(load);
+ const [tab,setTab]=useState('dashboard');
+ const [status,setStatus]=useState('saved');
+ const fileRef=useRef(null);
+ const mounted=useRef(false);
+ const calc=useMemo(()=>calculate(s),[s]);
+ const issues=useMemo(()=>validate(s,calc),[s,calc]);
+
+ // Autosave menggantikan ketergantungan pada tombol Save. Tombolnya tetap ada
+ // karena menyimpan secara eksplisit adalah kebiasaan yang wajar, tapi menutup
+ // tab tidak lagi berarti kehilangan pekerjaan.
+ useEffect(()=>{
+  if(!mounted.current){mounted.current=true;return}
+  setStatus('dirty');
+  const t=setTimeout(()=>setStatus(save(s)?'saved':'error'),AUTOSAVE_MS);
+  return ()=>clearTimeout(t);
+ },[s]);
+
+ useEffect(()=>{
+  if(status!=='dirty')return;
+  const warn=e=>{e.preventDefault();e.returnValue=''};
+  window.addEventListener('beforeunload',warn);
+  return ()=>window.removeEventListener('beforeunload',warn);
+ },[status]);
+
+ // Pembaruan dengan structural sharing, bukan structuredClone penuh, supaya
+ // biaya per ketukan tidak tumbuh mengikuti ukuran proyek.
+ const update=(path,val)=>setS(prev=>{
+  const next={...prev};let node=next;
+  for(let i=0;i<path.length-1;i++){const k=path[i];node[k]=Array.isArray(node[k])?[...node[k]]:{...node[k]};node=node[k]}
+  node[path[path.length-1]]=val;return next;
+ });
+ const saveNow=()=>setStatus(save(s)?'saved':'error');
+ const reset=()=>{if(confirm('Reset seluruh data ke contoh awal? Data tersimpan akan dihapus.')){clearStored();setS(newState())}};
+ const exportJson=()=>download(new Blob([JSON.stringify({...s,calculation:calc,issues},null,2)],{type:'application/json'}),`${s.project.code||'ucp'}-project.json`);
+ const importJson=e=>{
+  const file=e.target.files?.[0];e.target.value='';
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+   try{
+    const data=normalize(JSON.parse(String(reader.result)));
+    if(confirm(`Ganti seluruh data saat ini dengan isi "${file.name}"?`))setS(data);
+   }catch{alert('File tidak dapat dibaca sebagai JSON proyek UCP yang valid.')}
+  };
+  reader.onerror=()=>alert('Gagal membaca file.');
+  reader.readAsText(file);
+ };
+
+ const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
+ const label={dirty:'Menyimpan…',saved:'Tersimpan',error:'Gagal menyimpan'}[status];
+
+ return <div className="app">
+  <aside>
+   <div className="brand"><div className="logo">U</div><div><b>UCP Manager</b><small>Local Estimation Engine</small></div></div>
+   <div className="project-mini"><span>PROJECT</span><strong>{s.project.name}</strong><small>{s.project.code}</small></div>
+   <nav aria-label="Navigasi modul">{nav.map(([id,text,Icon])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id} aria-current={tab===id?'page':undefined}><Icon size={18}/>{text}</button>)}</nav>
+   <div className="side-actions">
+    <button onClick={exportJson}><Download size={16}/>Export</button>
+    <button onClick={()=>fileRef.current?.click()}><Upload size={16}/>Import</button>
+    <button onClick={reset}><RotateCcw size={16}/>Reset</button>
+   </div>
+   <input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>
+  </aside>
+  <main>
+   <header>
+    <div><div className="eyebrow">USE CASE POINT • PROJECT ESTIMATION</div><h1>{title(tab)}</h1></div>
+    <div className="header-actions">
+     <span className="status">{s.project.status}</span>
+     <span className={`autosave ${status}`} role="status">{status==='saved'?<CircleCheck size={14}/>:<CircleAlert size={14}/>}{label}</span>
+     <button className="primary" onClick={saveNow}><Save size={16}/>Save</button>
+    </div>
+   </header>
+   <Issues items={issues}/>
+   {tab==='dashboard'&&<Dashboard s={s} c={calc} go={setTab}/>}
+   {tab==='project'&&<Project s={s} update={update}/>}
+   {tab==='actors'&&<Actors s={s} setS={setS} c={calc}/>}
+   {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc}/>}
+   {tab==='factors'&&<Factors s={s} update={update} c={calc}/>}
+   {tab==='calculation'&&<Calculation s={s} c={calc} update={update}/>}
+   {tab==='planning'&&<Planning s={s} c={calc} update={update}/>}
+   {tab==='staffing'&&<Staffing s={s} c={calc} setS={setS}/>}
+   {tab==='cost'&&<Cost s={s} c={calc} update={update}/>}
+   {tab==='feasibility'&&<Feasibility s={s} update={update} c={calc}/>}
+  </main>
+ </div>;
+}
+
+function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
+function Card({label,value,sub}){return <div className="card"><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>}
+
+function Dashboard({s,c,go}){return <><section className="hero"><div><span className="pill">BASELINE ESTIMATE</span><h2>{s.project.name}</h2><p>{s.project.description}</p></div><div className="hero-number"><small>USE CASE POINT</small><b>{c.ucp.toFixed(2)}</b><span>{c.pm.toFixed(2)} person-month</span></div></section><div className="cards"><Card label="UCP" value={c.ucp.toFixed(2)} sub="Use Case Point"/><Card label="Person Hours" value={fmt(c.ph)} sub={`PHM ${s.params.phm}`}/><Card label="Person-Month" value={c.pm.toFixed(2)} sub="Effort"/><Card label="Duration" value={`${c.duration.toFixed(2)} mo`} sub="3 × PM^(1/3)"/></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Calculation Flow</h3><button onClick={()=>go('calculation')}>Open Engine <ChevronRight size={15}/></button></div><div className="flow"><div><b>{c.uaw.toFixed(0)}</b><small>UAW</small></div><i>+</i><div><b>{c.uucw.toFixed(0)}</b><small>UUCW</small></div><i>×</i><div><b>{c.tcf.toFixed(2)}</b><small>TCF</small></div><i>×</i><div><b>{c.ecf.toFixed(2)}</b><small>ECF</small></div><i>=</i><div className="accent"><b>{c.ucp.toFixed(2)}</b><small>UCP</small></div></div></section><section className="panel"><div className="panel-head"><h3>SDLC Distribution</h3><button onClick={()=>go('planning')}>Edit <ChevronRight size={15}/></button></div>{c.phase.map(p=><div className="barrow" key={p.name}><div><span>{p.name}</span><b>{p.duration.toFixed(2)} mo</b></div><div className="bar"><i style={{width:`${Math.min(100,num(p.weight))}%`}}/></div></div>)}</section></div><section className="panel"><div className="panel-head"><h3>Scenario Sensitivity</h3><button onClick={()=>go('calculation')}>Configure</button></div><table><caption className="sr-only">Sensitivitas estimasi terhadap PHM dan kapasitas kerja</caption><thead><tr><th scope="col">PHM</th><th scope="col">Capacity</th><th scope="col">Person-Month</th><th scope="col">Duration</th></tr></thead><tbody>{[[20,8,22],[20,10,26],[28,8,22],[28,10,26]].map(x=>{const pm=(c.ucp*x[0])/(x[1]*x[2]);return <tr key={x.join()}><td>{x[0]}</td><td>{x[1]}h × {x[2]}d</td><td>{pm.toFixed(2)}</td><td>{(3*Math.cbrt(pm)).toFixed(2)} mo</td></tr>})}</tbody></table></section></>}
+
+function Project({s,update}){return <section className="panel form"><div className="formgrid">{[['code','Project Code'],['name','Project Name'],['sponsor','Project Sponsor'],['owner','Business Owner'],['manager','Project Manager'],['start','Start Date'],['target','Target Completion']].map(([k,l])=><label key={k}>{l}<input value={s.project[k]} type={k==='start'||k==='target'?'date':'text'} onChange={e=>update(['project',k],e.target.value)}/></label>)}<label>Project Status<select value={s.project.status} onChange={e=>update(['project','status'],e.target.value)}>{statuses.map(x=><option key={x}>{x}</option>)}</select></label><label className="wide">Description<textarea value={s.project.description} onChange={e=>update(['project','description'],e.target.value)}/></label></div></section>}
+
+function Actors({s,setS,c}){
+ const add=()=>setS(p=>({...p,actors:[...p.actors,{id:uid(),name:'New Actor',type:'Simple',qty:1}]}));
+ const patch=(id,k,v)=>setS(p=>({...p,actors:p.actors.map(x=>x.id===id?{...x,[k]:v}:x)}));
+ const del=(id,name)=>{if(confirm(`Hapus actor "${name}"?`))setS(p=>({...p,actors:p.actors.filter(x=>x.id!==id)}))};
+ return <section className="panel"><div className="panel-head"><h3>Actors</h3><button className="primary" onClick={add}><Plus size={15}/>Add Actor</button></div><table><caption className="sr-only">Daftar actor dan bobotnya</caption><thead><tr><th scope="col">Actor</th><th scope="col">Classification</th><th scope="col">Qty</th><th scope="col">Weight</th><th scope="col">Subtotal</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead><tbody>{s.actors.map(a=><tr key={a.id}><td><input value={a.name} aria-label="Nama actor" onChange={e=>patch(a.id,'name',e.target.value)}/></td><td><select value={a.type} aria-label="Klasifikasi actor" onChange={e=>patch(a.id,'type',e.target.value)}>{Object.keys(actorWeights).map(x=><option key={x}>{x}</option>)}</select></td><td><NumInput value={a.qty} min={0} max={9999} aria-label="Jumlah actor" onCommit={v=>patch(a.id,'qty',v)}/></td><td>{actorWeights[a.type]}</td><td><b>{num(a.qty)*actorWeights[a.type]}</b></td><td><button className="icon" aria-label={`Hapus actor ${a.name}`} onClick={()=>del(a.id,a.name)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>{!s.actors.length&&<p className="hint">Belum ada actor. UAW akan bernilai 0.</p>}<div className="total">UAW <b>{c.uaw}</b></div></section>;
+}
+
+function UseCases({s,setS,c}){
+ const add=()=>setS(p=>({...p,useCases:[...p.useCases,{id:uid(),code:nextCode(p.useCases),name:'New Use Case',actor:'',transactions:3,type:'Simple',override:false}]}));
+ const patch=(id,k,v)=>setS(p=>({...p,useCases:p.useCases.map(x=>x.id===id?{...x,[k]:v}:x)}));
+ const del=(id,name)=>{if(confirm(`Hapus use case "${name}"?`))setS(p=>({...p,useCases:p.useCases.filter(x=>x.id!==id)}))};
+ return <section className="panel"><div className="panel-head"><h3>Use Cases</h3><button className="primary" onClick={add}><Plus size={15}/>Add Use Case</button></div>
+  <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption><thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+  <tbody>{s.useCases.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);return <tr key={u.id}>
+   <td><input className="code" value={u.code} aria-label="Kode use case" onChange={e=>patch(u.id,'code',e.target.value)}/></td>
+   <td><input value={u.name} aria-label="Nama use case" onChange={e=>patch(u.id,'name',e.target.value)}/></td>
+   <td><input value={u.actor} aria-label="Actor terkait" onChange={e=>patch(u.id,'actor',e.target.value)}/></td>
+   <td><NumInput value={u.transactions} min={0} max={999} aria-label="Jumlah transaksi" onCommit={v=>patch(u.id,'transactions',v)}/></td>
+   <td>{u.override?<select value={u.type} aria-label="Kompleksitas manual" onChange={e=>patch(u.id,'type',e.target.value)}>{complexity.map(x=><option key={x}>{x}</option>)}</select>:<span className="derived">{derived}<small>dari {num(u.transactions)} transaksi</small></span>}</td>
+   <td><label className="check"><input type="checkbox" checked={u.override} aria-label={`Override kompleksitas ${u.code}`} onChange={e=>patch(u.id,'override',e.target.checked)}/><span>manual</span></label></td>
+   <td><b>{ucWeights[eff]}</b>{u.override&&u.type!==derived&&<small className="flag">≠ {derived}</small>}</td>
+   <td><button className="icon" aria-label={`Hapus use case ${u.name}`} onClick={()=>del(u.id,u.name)}><Trash2 size={15}/></button></td>
+  </tr>})}</tbody></table>
+  {!s.useCases.length&&<p className="hint">Belum ada use case. UUCW akan bernilai 0.</p>}
+  <div className="total">UUCW <b>{c.uucw}</b></div>
+  <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan.</p>
+ </section>;
+}
+
+function Factors({s,update,c}){
+ const list=(key,heading)=><div className="factorbox"><h3>{heading}</h3>{s[key].map((x,i)=><div className="factor" key={x.id}><div><b>{x.id} · {x.name}</b><small>{x.desc}</small></div><NumInput value={x.rating} min={0} max={5} aria-label={`Rating ${x.id} ${x.name}`} onCommit={v=>{const a=[...s[key]];a[i]={...a[i],rating:v};update([key],a)}}/><span>× {x.weight}</span><strong>{(x.rating*x.weight).toFixed(2)}</strong></div>)}</div>;
+ return <div className="grid2">{list('tf','Technical Factors')}{list('ef','Environmental Factors')}<section className="panel"><div className="mini-results"><Card label="TF" value={c.tf.toFixed(2)}/><Card label="TCF" value={c.tcf.toFixed(3)}/></div></section><section className="panel"><div className="mini-results"><Card label="EF" value={c.ef.toFixed(2)}/><Card label="ECF" value={c.ecf.toFixed(3)}/></div></section></div>;
+}
+
+function Calculation({s,c,update}){
+ const fields=[['phm','Person Hour Multiplier (PHM)',1,1000],['hours','Working Hours / Day',1,24],['days','Working Days / Month',1,31],['targetMonths','Target Duration / Month',0,600]];
+ return <><div className="cards"><Card label="UUCP" value={c.uu.toFixed(2)} sub={`${c.uaw} UAW + ${c.uucw} UUCW`}/><Card label="TCF" value={c.tcf.toFixed(3)} sub={`TF ${c.tf.toFixed(2)}`}/><Card label="ECF" value={c.ecf.toFixed(3)} sub={`EF ${c.ef.toFixed(2)}`}/><Card label="UCP" value={c.ucp.toFixed(2)} sub="UUCP × TCF × ECF"/></div>
+  <section className="panel form"><h3>Effort Parameters</h3><div className="formgrid">{fields.map(([k,l,min,max])=><label key={k}>{l}<NumInput value={s.params[k]} min={min} max={max} onCommit={v=>update(['params',k],v)}/></label>)}</div></section>
+  <section className="panel"><h3>Calculation Chain</h3><div className="formula"><b>Person Hours</b><code>UCP × PHM = {c.ucp.toFixed(2)} × {s.params.phm} = {fmt(c.ph)} hours</code></div><div className="formula"><b>Person-Month</b><code>PH ÷ (hours/day × days/month) = {fmt(c.ph)} ÷ ({s.params.hours} × {s.params.days}) = {c.pm.toFixed(2)} PM</code></div><div className="formula"><b>Duration</b><code>3 × PM^(1/3) = {c.duration.toFixed(2)} months</code></div></section></>;
+}
+
+function Planning({s,c,update}){
+ const off=Math.round(c.phaseWeight*100)/100!==100;
+ return <section className="panel"><div className="panel-head"><h3>Phase Distribution</h3><span className={`total ${off?'bad':''}`}>Total <b>{c.phaseWeight}%</b></span></div>
+  {s.phases.map((p,i)=><div className="phase-edit" key={p.name}><label>{p.name}<NumInput value={p.weight} min={0} max={100} onCommit={v=>{const a=[...s.phases];a[i]={...a[i],weight:v};update(['phases'],a)}}/></label><div className="phase-track"><i style={{width:`${Math.min(100,num(p.weight))}%`}}/></div><strong>{(c.duration*num(p.weight)/100).toFixed(2)} mo</strong></div>)}
+  {off&&<p className="hint bad">Total bobot {c.phaseWeight}% — jumlah durasi fase tidak akan sama dengan durasi proyek ({c.duration.toFixed(2)} bulan) sampai totalnya tepat 100%.</p>}
+  <p className="hint">Baseline mengikuti workbook: Planning 15%, Analysis 20%, Design 35%, Implementation 30%.</p></section>;
+}
+
+function Staffing({s,c,setS}){
+ const required=Number.isFinite(c.fte)?Math.ceil(c.fte):0;
+ const total=s.roles.reduce((a,r)=>a+num(r.fte)*num(r.allocation)/100,0);
+ const add=()=>setS(p=>({...p,roles:[...p.roles,{id:uid(),name:'New Role',rate:10000000,fte:1,allocation:100}]}));
+ const patch=(id,k,v)=>setS(p=>({...p,roles:p.roles.map(r=>r.id===id?{...r,[k]:v}:r)}));
+ const del=(id,name)=>{if(confirm(`Hapus peran "${name}"?`))setS(p=>({...p,roles:p.roles.filter(r=>r.id!==id)}))};
+ return <><div className="cards"><Card label="Target Duration" value={`${s.params.targetMonths} mo`}/><Card label="Effort" value={`${c.pm.toFixed(2)} PM`}/><Card label="Calculated FTE" value={c.fte.toFixed(2)}/><Card label="Suggested Team" value={`${required} FTE`}/></div>
+  <section className="panel"><div className="panel-head"><h3>Role Allocation</h3><button className="primary" onClick={add}><Plus size={15}/>Add Role</button></div>
+  <table><caption className="sr-only">Alokasi peran dan FTE efektif</caption><thead><tr><th scope="col">Role</th><th scope="col">Monthly Rate</th><th scope="col">FTE</th><th scope="col">Allocation %</th><th scope="col">Effective FTE</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+  <tbody>{s.roles.map(r=><tr key={r.id}><td><input value={r.name} aria-label="Nama peran" onChange={e=>patch(r.id,'name',e.target.value)}/></td><td><NumInput value={r.rate} min={0} max={1e12} step={100000} aria-label="Rate bulanan" onCommit={v=>patch(r.id,'rate',v)}/></td><td><NumInput value={r.fte} min={0} max={999} step={.5} aria-label="FTE" onCommit={v=>patch(r.id,'fte',v)}/></td><td><NumInput value={r.allocation} min={0} max={100} aria-label="Alokasi persen" onCommit={v=>patch(r.id,'allocation',v)}/></td><td>{(num(r.fte)*num(r.allocation)/100).toFixed(2)}</td><td><button className="icon" aria-label={`Hapus peran ${r.name}`} onClick={()=>del(r.id,r.name)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>
+  {!s.roles.length&&<p className="hint">Belum ada peran. Biaya sumber daya akan bernilai 0.</p>}
+  <div className="total">Effective FTE <b>{total.toFixed(2)}</b></div>
+  <p className="hint">Kebutuhan FTE dihitung dari target {s.params.targetMonths} bulan, sedangkan Planning memakai durasi terhitung {c.duration.toFixed(2)} bulan. Samakan keduanya bila rencana staffing dan rencana jadwal harus konsisten.</p></section></>;
+}
+
+function Cost({s,c,update}){return <><div className="cards"><Card label="Total Cost" value={money(c.cost)} sub="Sumber daya + biaya lain"/><Card label="Resource Cost" value={money(c.resourceCost)}/><Card label="Additional Cost" value={money(c.extraCost)}/><Card label="Cost / PM" value={money(c.pm?c.cost/c.pm:0)}/></div>
+ <section className="panel"><h3>Resource Cost</h3><table><caption className="sr-only">Biaya per peran sepanjang durasi proyek</caption><thead><tr><th scope="col">Role</th><th scope="col">Rate / Month</th><th scope="col">FTE</th><th scope="col">Allocation</th><th scope="col">Cost</th></tr></thead><tbody>{s.roles.map(r=><tr key={r.id}><td>{r.name}</td><td>{money(r.rate)}</td><td>{r.fte}</td><td>{r.allocation}%</td><td>{money(num(r.rate)*num(r.fte)*num(r.allocation)/100*c.duration)}</td></tr>)}</tbody><tfoot><tr><td colSpan={4}>Subtotal sumber daya</td><td><b>{money(c.resourceCost)}</b></td></tr></tfoot></table></section>
+ <section className="panel form"><h3>Additional Costs</h3><div className="formgrid">{extraKeys.map(([k,l])=><label key={k}>{l}<NumInput value={s.extras[k]} min={0} max={1e12} step={100000} onCommit={v=>update(['extras',k],v)}/></label>)}</div><div className="total">Subtotal biaya lain <b>{money(c.extraCost)}</b></div></section>
+ <section className="panel"><div className="total big">Total biaya proyek <b>{money(c.cost)}</b></div></section></>}
+
+function Feasibility({s,update,c}){return <><div className="cards"><Card label="Technical" value={s.feas.technical}/><Card label="Economic" value={s.feas.economic}/><Card label="Organizational" value={s.feas.organizational}/><Card label="Project Effort" value={`${c.pm.toFixed(2)} PM`}/></div><section className="panel form"><div className="formgrid">{[['technical','Technical Feasibility'],['economic','Economic Feasibility'],['organizational','Organizational Feasibility']].map(([k,l])=><label key={k}>{l}<select value={s.feas[k]} onChange={e=>update(['feas',k],e.target.value)}>{levels.map(x=><option key={x}>{x}</option>)}</select></label>)}<label className="wide">Assessment Notes<textarea value={s.feas.notes} onChange={e=>update(['feas','notes'],e.target.value)} placeholder="Catat asumsi, risiko, evidence, dan mitigasi."/></label></div></section><section className="panel"><h3>Decision Brief</h3><div className="brief"><div><span>Technical</span><b>Can we build it?</b><p>Review technology familiarity, architecture, integration, security, performance, project size and technical risk.</p></div><div><span>Economic</span><b>Should we build it?</b><p>Biaya proyek saat ini {money(c.cost)}. Lanjutkan dengan benefit, NPV, ROI dan break-even sebagai lapisan ekonomi berikutnya.</p></div><div><span>Organizational</span><b>Will they use it?</b><p>Review strategic alignment, sponsor/champion support, user readiness and change/adoption risk.</p></div></div></section></>}
+
+function fmt(n){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(num(n))}
+function money(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(num(n))}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}
+
+createRoot(document.getElementById('root')).render(<Boundary><App/></Boundary>);
