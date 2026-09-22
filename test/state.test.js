@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalize,newState,nextCode,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
+import {normalize,newState,emptyProject,nextCode,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
 import {calculate,deriveComplexity} from '../src/calc.js';
 
 // normalize() adalah satu-satunya pintu masuk data dari localStorage maupun
@@ -95,4 +95,32 @@ test('setiap actor, use case, dan role selalu punya id unik', () => {
 
 test('seed sendiri lolos normalisasi tanpa berubah', () => {
  assert.deepEqual(normalize(structuredClone(seed)),structuredClone(seed));
+});
+
+test('emptyProject() memberi kanvas kosong tapi tetap membawa model UCP', () => {
+ const s=emptyProject();
+ assert.deepEqual(s.actors,[]);
+ assert.deepEqual(s.useCases,[]);
+ assert.equal(s.tf.length,13);
+ assert.equal(s.ef.length,8);
+ assert.equal(s.phases.reduce((a,p)=>a+p.weight,0),100);
+ assert.equal(s.project.status,'Draft');
+ assert.ok(!s.project.description);
+ const c=calculate(s);
+ assert.equal(c.uaw,0);
+ assert.equal(c.uucw,0);
+ assert.equal(c.ucp,0);
+ assert.ok(Number.isFinite(c.cost));
+});
+
+test('proyek kosong lolos normalisasi tanpa berubah bentuk', () => {
+ const s=emptyProject();
+ assert.deepEqual(normalize(structuredClone(s)),structuredClone(s));
+});
+
+test('savedAt dipertahankan lewat normalisasi bila berupa string', () => {
+ const stamp='2026-09-22T04:00:00.000Z';
+ assert.equal(normalize({...newState(),savedAt:stamp}).savedAt,stamp);
+ assert.ok(!('savedAt' in normalize({...newState(),savedAt:12345})));
+ assert.ok(!('savedAt' in normalize(newState())));
 });

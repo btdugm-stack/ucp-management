@@ -1,8 +1,8 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck} from 'lucide-react';
+import {LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType} from './calc.js';
-import {load,save,newState,normalize,nextCode,uid,statuses,levels,readStored,clearStored} from './state.js';
+import {load,save,newState,emptyProject,summary,normalize,nextCode,uid,statuses,levels,readStored,clearStored} from './state.js';
 import './styles.css';
 
 const AUTOSAVE_MS=600;
@@ -50,14 +50,87 @@ function Issues({items}){
  </section>;
 }
 
+const flow=[
+ ['Project Setup','Catat identitas proyek: kode, nama, sponsor, business owner, jadwal, dan status.',FolderKanban],
+ ['Actor Analysis','Daftarkan setiap actor dan klasifikasikan Simple, Average, atau Complex untuk memperoleh UAW.',Users],
+ ['Use Case Analysis','Daftarkan use case beserta jumlah transaksinya. Kompleksitas diturunkan otomatis menjadi UUCW.',Workflow],
+ ['Technical & Environmental Factors','Beri rating 0–5 pada 13 faktor teknis dan 8 faktor lingkungan untuk menghasilkan TCF dan ECF.',SlidersHorizontal],
+ ['Calculation Engine','Rantai UCP terbentuk, lalu diterjemahkan menjadi person hour dan person-month lewat parameter effort.',Calculator],
+ ['Phase & Schedule Planning','Bagi durasi ke fase SDLC. Total bobot fase harus tepat 100%.',CalendarDays],
+ ['Staffing Plan','Hitung kebutuhan FTE terhadap target durasi, lalu susun alokasi peran.',UsersRound],
+ ['Cost Estimation','Biaya sumber daya dari rate dan alokasi, ditambah biaya infrastruktur, lisensi, pelatihan, dan migrasi.',WalletCards],
+ ['Feasibility Assessment','Simpulkan kelayakan teknis, ekonomi, dan organisasi beserta catatan asumsi serta risikonya.',ShieldCheck]
+];
+const chain=[['UAW','Bobot actor'],['UUCW','Bobot use case'],['TCF','0,6 + 0,01 × TF'],['ECF','1,4 − 0,03 × EF'],['UCP','(UAW + UUCW) × TCF × ECF'],['Effort','UCP × PHM'],['Duration','3 × PM^(1/3)']];
+
+function StartScreen({saved,onNew,onContinue,onExample,onImport,onExport}){
+ return <div className="start">
+  <div className="start-inner">
+   <header className="start-head">
+    <div className="logo">U</div>
+    <div><b>UCP Manager</b><small>Local Estimation Engine</small></div>
+   </header>
+   <h1>Estimasi proyek berbasis Use Case Point</h1>
+   <p className="lede">Susun estimasi effort, jadwal, kebutuhan tim, dan biaya proyek dari analisis actor dan use case. Seluruh data disimpan di browser ini dan tidak dikirim ke mana pun.</p>
+
+   <div className="start-actions">
+    {saved&&<article className="start-card resume">
+     <div className="start-card-head"><FolderOpen size={17}/><span>Proyek tersimpan</span></div>
+     <b>{saved.name||'Tanpa nama'}</b>
+     <small>{[saved.code,saved.status].filter(Boolean).join(' · ')}</small>
+     <ul className="start-meta">
+      <li>{saved.actors} actor</li>
+      <li>{saved.useCases} use case</li>
+      {saved.savedAt&&<li><Clock size={12}/>{when(saved.savedAt)}</li>}
+     </ul>
+     <div className="start-card-actions">
+      <button className="primary" onClick={onContinue}>Lanjutkan<ArrowRight size={15}/></button>
+      <button onClick={onExport}><Download size={14}/>Export</button>
+     </div>
+    </article>}
+    <article className={`start-card ${saved?'':'lead'}`}>
+     <div className="start-card-head"><FilePlus2 size={17}/><span>Proyek baru</span></div>
+     <b>Mulai dari nol</b>
+     <small>Kanvas kosong tanpa actor dan use case. Faktor teknis, faktor lingkungan, dan distribusi fase tetap mengikuti baku model UCP.</small>
+     <div className="start-card-actions">
+      <button className={saved?'':'primary'} onClick={onNew}>Mulai Proyek Baru<ArrowRight size={15}/></button>
+     </div>
+    </article>
+   </div>
+
+   <div className="start-secondary">
+    <button onClick={onExample}><Sparkles size={15}/>Muat data contoh</button>
+    <button onClick={onImport}><Upload size={15}/>Import dari file JSON</button>
+   </div>
+
+   <section className="start-flow">
+    <h2>Alur penggunaan</h2>
+    <p className="lede">Sembilan modul dikerjakan berurutan. Setiap modul memberi masukan bagi modul berikutnya, dan seluruh angka dihitung ulang seketika saat ada perubahan.</p>
+    <ol>{flow.map(([name,desc,Icon],i)=><li key={name}><span className="step">{i+1}</span><div><b><Icon size={15}/>{name}</b><small>{desc}</small></div></li>)}</ol>
+   </section>
+
+   <section className="start-chain">
+    <h2>Rantai perhitungan</h2>
+    <div className="chain">{chain.map(([k,v],i)=><div key={k}>{i>0&&<i aria-hidden="true">→</i>}<span><b>{k}</b><small>{v}</small></span></div>)}</div>
+   </section>
+
+   <p className="start-note">Pekerjaan tersimpan otomatis di browser ini. Karena penyimpanan bersifat lokal, gunakan <b>Export</b> secara berkala sebagai cadangan, dan <b>Import</b> untuk memulihkannya di perangkat lain.</p>
+  </div>
+ </div>;
+}
+
 function App(){
  const [s,setS]=useState(load);
+ const [view,setView]=useState('start');
  const [tab,setTab]=useState('dashboard');
  const [status,setStatus]=useState('saved');
  const fileRef=useRef(null);
  const mounted=useRef(false);
  const calc=useMemo(()=>calculate(s),[s]);
  const issues=useMemo(()=>validate(s,calc),[s,calc]);
+ // Dibaca ulang setiap kali halaman start ditampilkan agar ringkasannya
+ // mencerminkan hasil autosave terakhir, bukan kondisi saat aplikasi dibuka.
+ const saved=useMemo(()=>view==='start'?summary():null,[view]);
 
  // Autosave menggantikan ketergantungan pada tombol Save. Tombolnya tetap ada
  // karena menyimpan secara eksplisit adalah kebiasaan yang wajar, tapi menutup
@@ -93,27 +166,46 @@ function App(){
   reader.onload=()=>{
    try{
     const data=normalize(JSON.parse(String(reader.result)));
-    if(confirm(`Ganti seluruh data saat ini dengan isi "${file.name}"?`))setS(data);
+    if(confirm(`Ganti seluruh data saat ini dengan isi "${file.name}"?`)){setS(data);enter('dashboard')}
    }catch{alert('File tidak dapat dibaca sebagai JSON proyek UCP yang valid.')}
   };
   reader.onerror=()=>alert('Gagal membaca file.');
   reader.readAsText(file);
  };
 
+ const enter=tabId=>{setTab(tabId);setView('app')};
+ // Mengganti isi proyek berarti menimpa satu-satunya salinan yang tersimpan,
+ // jadi selalu minta konfirmasi dan ingatkan jalur cadangannya lebih dulu.
+ const replace=(next,tabId)=>{
+  if(saved&&!confirm('Proyek yang tersimpan akan digantikan dan tidak dapat dikembalikan. Export dulu sebagai cadangan bila masih dibutuhkan.\n\nLanjutkan?'))return;
+  setS(next());
+  enter(tabId);
+ };
+ const goStart=()=>{saveNow();setView('start')};
+
  const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
  const label={dirty:'Menyimpan…',saved:'Tersimpan',error:'Gagal menyimpan'}[status];
+ const picker=<input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>;
+
+ if(view==='start')return <>{picker}<StartScreen saved={saved}
+  onNew={()=>replace(emptyProject,'project')}
+  onExample={()=>replace(newState,'dashboard')}
+  onContinue={()=>{setS(load());enter('dashboard')}}
+  onImport={()=>fileRef.current?.click()}
+  onExport={exportJson}/></>;
 
  return <div className="app">
+  {picker}
   <aside>
    <div className="brand"><div className="logo">U</div><div><b>UCP Manager</b><small>Local Estimation Engine</small></div></div>
    <div className="project-mini"><span>PROJECT</span><strong>{s.project.name}</strong><small>{s.project.code}</small></div>
    <nav aria-label="Navigasi modul">{nav.map(([id,text,Icon])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id} aria-current={tab===id?'page':undefined}><Icon size={18}/>{text}</button>)}</nav>
-   <div className="side-actions">
+   <div className="side-actions four">
+    <button onClick={goStart}><House size={16}/>Beranda</button>
     <button onClick={exportJson}><Download size={16}/>Export</button>
     <button onClick={()=>fileRef.current?.click()}><Upload size={16}/>Import</button>
     <button onClick={reset}><RotateCcw size={16}/>Reset</button>
    </div>
-   <input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>
   </aside>
   <main>
    <header>
@@ -217,6 +309,7 @@ function Cost({s,c,update}){return <><div className="cards"><Card label="Total C
 
 function Feasibility({s,update,c}){return <><div className="cards"><Card label="Technical" value={s.feas.technical}/><Card label="Economic" value={s.feas.economic}/><Card label="Organizational" value={s.feas.organizational}/><Card label="Project Effort" value={`${c.pm.toFixed(2)} PM`}/></div><section className="panel form"><div className="formgrid">{[['technical','Technical Feasibility'],['economic','Economic Feasibility'],['organizational','Organizational Feasibility']].map(([k,l])=><label key={k}>{l}<select value={s.feas[k]} onChange={e=>update(['feas',k],e.target.value)}>{levels.map(x=><option key={x}>{x}</option>)}</select></label>)}<label className="wide">Assessment Notes<textarea value={s.feas.notes} onChange={e=>update(['feas','notes'],e.target.value)} placeholder="Catat asumsi, risiko, evidence, dan mitigasi."/></label></div></section><section className="panel"><h3>Decision Brief</h3><div className="brief"><div><span>Technical</span><b>Can we build it?</b><p>Review technology familiarity, architecture, integration, security, performance, project size and technical risk.</p></div><div><span>Economic</span><b>Should we build it?</b><p>Biaya proyek saat ini {money(c.cost)}. Lanjutkan dengan benefit, NPV, ROI dan break-even sebagai lapisan ekonomi berikutnya.</p></div><div><span>Organizational</span><b>Will they use it?</b><p>Review strategic alignment, sponsor/champion support, user readiness and change/adoption risk.</p></div></div></section></>}
 
+function when(iso){try{const d=new Date(iso);return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short'}).format(d)}catch{return ''}}
 function fmt(n){return new Intl.NumberFormat('id-ID',{maximumFractionDigits:2}).format(num(n))}
 function money(n){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(num(n))}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();URL.revokeObjectURL(a.href)}

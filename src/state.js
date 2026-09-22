@@ -69,7 +69,9 @@ export function normalize(raw){
   organizational:pick(raw.feas?.organizational,levels,'Medium'),
   notes:str(raw.feas?.notes)
  };
- return {version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,feas};
+ const out={version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,feas};
+ if(typeof raw.savedAt==='string')out.savedAt=raw.savedAt;
+ return out;
 }
 
 export function load(){
@@ -79,9 +81,31 @@ export function load(){
   return normalize(JSON.parse(raw));
  }catch{return newState()}
 }
-export function save(s){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(s));return true}catch{return false}}
+export function save(s){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({...s,savedAt:new Date().toISOString()}));return true}catch{return false}}
 export function readStored(){try{return localStorage.getItem(STORAGE_KEY)}catch{return null}}
 export function clearStored(){try{localStorage.removeItem(STORAGE_KEY)}catch{}}
+
+// Ringkasan ringan untuk halaman start: cukup untuk memutuskan apakah akan
+// melanjutkan proyek tersimpan, tanpa perlu memuat seluruh state ke UI.
+export function summary(){
+ try{
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(!raw)return null;
+  const s=normalize(JSON.parse(raw));
+  return {name:s.project.name,code:s.project.code,status:s.project.status,actors:s.actors.length,useCases:s.useCases.length,savedAt:s.savedAt||null};
+ }catch{return null}
+}
+
+// Proyek baru berangkat dari kanvas kosong: tanpa actor dan use case contoh,
+// tapi tetap membawa 13 TF, 8 EF, distribusi fase dan parameter baku yang
+// memang bagian dari model, bukan data proyek.
+export function emptyProject(){
+ const s=newState();
+ s.project={...s.project,code:'UCP-001',name:'Proyek Baru',description:'',sponsor:'',owner:'',manager:'',start:'',target:'',status:'Draft'};
+ s.actors=[];
+ s.useCases=[];
+ return s;
+}
 
 // Kode use case diturunkan dari sufiks tertinggi yang sudah dipakai, bukan dari
 // panjang array, agar penghapusan di tengah tidak menghasilkan kode duplikat.
