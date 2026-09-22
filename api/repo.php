@@ -282,7 +282,7 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
             if ($code === '') {
                 continue;
             }
-            $insertFactor->execute([$id, $kind, $code, ucp_num($f['rating'] ?? null, 0, 5, 3), $i]);
+            $insertFactor->execute([$id, $kind, $code, ucp_num($f['rating'] ?? null, -5, 5, 3), $i]);
         }
     }
 

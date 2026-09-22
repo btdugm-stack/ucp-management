@@ -1,4 +1,4 @@
-import {actorWeights,complexity,clamp,num,deriveComplexity,extraKeys} from './calc.js';
+import {actorWeights,complexity,clamp,num,deriveComplexity,extraKeys,RATING_MIN,RATING_MAX} from './calc.js';
 
 export const STORAGE_KEY='ucp-state';
 export const STATE_VERSION=2;
@@ -53,7 +53,7 @@ export function normalize(raw){
   return {id:str(u?.id)||uid(),code:str(u?.code),name:str(u?.name,'Use Case'),actor:str(u?.actor),transactions,type,override};
  });
 
- const ratings=(def,stored)=>{const by=new Map(arr(stored).map(x=>[str(x?.id),x]));return def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:clamp(by.get(x[0])?.rating??3,0,5)}))};
+ const ratings=(def,stored)=>{const by=new Map(arr(stored).map(x=>[str(x?.id),x]));return def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:clamp(by.get(x[0])?.rating??3,RATING_MIN,RATING_MAX)}))};
  const params={
   phm:clamp(raw.params?.phm??d.params.phm,0,1000),
   hours:clamp(raw.params?.hours??d.params.hours,1,24),

@@ -36,10 +36,12 @@ test('bobot TF/EF selalu diambil dari model, bukan dari data tersimpan', () => {
  assert.equal(s.tf.find(f=>f.id==='T1').rating,5);
 });
 
-test('rating di luar skala dijepit saat dimuat', () => {
- const s=normalize({...newState(),tf:[{id:'T1',rating:999},{id:'T2',rating:-5}]});
+test('rating dijepit ke rentang -5 sampai 5 saat dimuat', () => {
+ const s=normalize({...newState(),tf:[{id:'T1',rating:999},{id:'T2',rating:-999},{id:'T3',rating:-4},{id:'T4',rating:'rusak'}]});
  assert.equal(s.tf.find(f=>f.id==='T1').rating,5);
- assert.equal(s.tf.find(f=>f.id==='T2').rating,0);
+ assert.equal(s.tf.find(f=>f.id==='T2').rating,-5);
+ assert.equal(s.tf.find(f=>f.id==='T3').rating,-4,'nilai negatif yang wajar dipertahankan');
+ assert.equal(s.tf.find(f=>f.id==='T4').rating,0,'isian rusak jatuh ke 0, bukan ke batas bawah');
 });
 
 test('parameter nol dijepit ke batas aman saat dimuat', () => {

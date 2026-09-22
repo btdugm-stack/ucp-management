@@ -26,6 +26,11 @@ test('helper: clamp() mengunci nilai ke rentang', () => {
  assert.equal(clamp(-3,0,5),0);
  assert.equal(clamp('4',0,5),4);
  assert.equal(clamp('',0,5),0);
+ // dengan batas bawah negatif, isian rusak tetap jatuh ke 0
+ assert.equal(clamp('',-5,5),0);
+ assert.equal(clamp('rusak',-5,5),0);
+ assert.equal(clamp(-99,-5,5),-5);
+ assert.equal(clamp(-2.5,-5,5),-2.5);
 });
 
 test('deriveComplexity mengikuti ambang UCP standar', () => {
@@ -83,12 +88,13 @@ test('parameter kosong atau berupa string tidak menghasilkan NaN', () => {
   if(typeof v==='number')assert.ok(Number.isFinite(v),`${k} tidak finite: ${v}`);
 });
 
-test('rating di luar skala 0-5 tidak bisa menggelembungkan UCP', () => {
+test('rating di luar rentang tidak bisa menggelembungkan UCP', () => {
  const s=newState();
  s.tf=s.tf.map(f=>({...f,rating:999}));
- const c=calculate(s);
- near(c.tf,999>5?5*14:0);   // rating di-clamp ke 5
- near(c.tcf,0.6+0.01*70);
+ near(calculate(s).tf,5*14);          // dijepit ke 5, bobot total 14
+ near(calculate(s).tcf,0.6+0.01*70);
+ s.tf=s.tf.map(f=>({...f,rating:-999}));
+ near(calculate(s).tf,-5*14);         // dijepit ke -5
 });
 
 test('biaya tambahan ikut terhitung pada total', () => {
@@ -179,4 +185,27 @@ test('validate memperingatkan Hari Durasi Project nol', () => {
  const s={...newState(),custom:{workingDays:22,projectDays:0}};
  const issues=validate(s,calculate(s));
  assert.ok(issues.some(i=>i.level==='warn'&&/Hari Durasi Project/i.test(i.message)));
+});
+
+test('assigned value negatif membalik arah kontribusi faktor', () => {
+ const s=newState();
+ // E7 dan E8 berbobot -1, sehingga rating negatif menghasilkan hasil positif
+ s.ef=s.ef.map(f=>f.id==='E7'||f.id==='E8'?{...f,rating:-1}:{...f,rating:0});
+ const c=calculate(s);
+ near(c.ef,2);                        // (-1 x -1) + (-1 x -1)
+ near(c.ecf,1.4-0.03*2);
+ // faktor berbobot positif bergerak ke arah sebaliknya
+ const t=newState();
+ t.tf=t.tf.map(f=>f.id==='T1'?{...f,rating:-3}:{...f,rating:0});
+ near(calculate(t).tf,-6);            // -3 x bobot 2
+ near(calculate(t).tcf,0.6+0.01*-6);
+});
+
+test('rating negatif tetap menghasilkan angka finite di seluruh rantai', () => {
+ const s=newState();
+ s.tf=s.tf.map(f=>({...f,rating:-5}));
+ s.ef=s.ef.map(f=>({...f,rating:-5}));
+ const c=calculate(s);
+ for(const [k,v] of Object.entries(c))
+  if(typeof v==='number')assert.ok(Number.isFinite(v),`${k} tidak finite: ${v}`);
 });

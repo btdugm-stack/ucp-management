@@ -120,6 +120,13 @@ perubahan ditahan sebagai draft di browser dan ditawarkan untuk dipulihkan saat
 proyek dibuka kembali, sehingga database yang mati tidak berarti kehilangan
 pekerjaan. Gunakan **Export** untuk cadangan di luar database.
 
+**Assigned value menerima nilai negatif.** Kolom yang dapat diisi pada tab
+Factors adalah assigned value, sedangkan bobot di sebelahnya ditetapkan model
+dan tidak dapat diubah. Rentangnya diperluas menjadi −5 sampai 5 atas
+permintaan; UCP standar memakai 0–5, sehingga nilai negatif membalik arah
+kontribusi sebuah faktor. Pada E7 dan E8 yang berbobot −1, assigned value
+negatif menghasilkan kontribusi positif yang menaikkan EF dan menurunkan ECF.
+
 **Kalkulasi custom** pada Dashboard menyediakan skenario alternatif di samping
 tabel Scenario Sensitivity. PM dan M diambil dari perhitungan default — M
 adalah durasi terhitung `3 × PM^(1/3)` — sedangkan Working Days dan Hari Durasi

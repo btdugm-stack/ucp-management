@@ -1,12 +1,20 @@
 export const actorWeights={Simple:1,Average:2,Complex:3};
 export const ucWeights={Simple:5,Average:10,Complex:15};
 export const complexity=['Simple','Average','Complex'];
+// UCP standar memakai assigned value 0-5. Rentang diperlebar ke negatif
+// atas permintaan, sehingga analis dapat membalik arah kontribusi sebuah
+// faktor tanpa mengubah bobot yang ditetapkan model.
+export const RATING_MIN=-5;
+export const RATING_MAX=5;
 export const extraKeys=[['infrastructure','Infrastructure'],['license','License'],['training','Training'],['migration','Data Migration']];
 
 // Setiap angka di aplikasi ini berasal dari field yang bisa dikosongkan user,
 // jadi tidak ada nilai mentah yang boleh masuk ke rumus tanpa dikoersi dulu.
 export const num=(v,fallback=0)=>{const n=Number(v);return Number.isFinite(n)?n:fallback};
-export const clamp=(v,min=-Infinity,max=Infinity)=>Math.min(max,Math.max(min,num(v,min===-Infinity?0:min)));
+// Nilai yang tidak valid jatuh ke 0 lalu baru dijepit, bukan langsung ke
+// batas bawah. Dengan rentang yang boleh negatif, jatuh ke batas bawah
+// akan mengubah isian rusak menjadi -5 alih-alih nilai netral.
+export const clamp=(v,min=-Infinity,max=Infinity)=>Math.min(max,Math.max(min,num(v,0)));
 // Pembagian terjaga: pembagi 0 atau tidak valid menghasilkan 0, bukan Infinity/NaN.
 export const div=(a,b)=>{const d=num(b,0);return d===0?0:num(a,0)/d};
 
@@ -19,8 +27,8 @@ export function calculate(s){
  const uaw=s.actors.reduce((a,x)=>a+clamp(x.qty,0)*(actorWeights[x.type]||0),0);
  const uucw=s.useCases.reduce((a,x)=>a+(ucWeights[effectiveType(x)]||0),0);
  const uu=uaw+uucw;
- const tf=s.tf.reduce((a,x)=>a+clamp(x.rating,0,5)*num(x.weight),0);
- const ef=s.ef.reduce((a,x)=>a+clamp(x.rating,0,5)*num(x.weight),0);
+ const tf=s.tf.reduce((a,x)=>a+clamp(x.rating,RATING_MIN,RATING_MAX)*num(x.weight),0);
+ const ef=s.ef.reduce((a,x)=>a+clamp(x.rating,RATING_MIN,RATING_MAX)*num(x.weight),0);
  const tcf=.6+.01*tf;
  const ecf=1.4-.03*ef;
  const ucp=uu*tcf*ecf;

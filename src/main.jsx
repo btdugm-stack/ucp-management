@@ -1,7 +1,7 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
-import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType} from './calc.js';
+import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
 import {newState,emptyProject,normalize,nextCode,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
 import './styles.css';
@@ -401,8 +401,8 @@ function UseCases({s,setS,c}){
 }
 
 function Factors({s,update,c}){
- const list=(key,heading)=><div className="factorbox"><h3>{heading}</h3>{s[key].map((x,i)=><div className="factor" key={x.id}><div><b>{x.id} · {x.name}</b><small>{x.desc}</small></div><NumInput value={x.rating} min={0} max={5} aria-label={`Rating ${x.id} ${x.name}`} onCommit={v=>{const a=[...s[key]];a[i]={...a[i],rating:v};update([key],a)}}/><span>× {x.weight}</span><strong>{(x.rating*x.weight).toFixed(2)}</strong></div>)}</div>;
- return <div className="grid2">{list('tf','Technical Factors')}{list('ef','Environmental Factors')}<section className="panel"><div className="mini-results"><Card label="TF" value={c.tf.toFixed(2)}/><Card label="TCF" value={c.tcf.toFixed(3)}/></div></section><section className="panel"><div className="mini-results"><Card label="EF" value={c.ef.toFixed(2)}/><Card label="ECF" value={c.ecf.toFixed(3)}/></div></section></div>;
+ const list=(key,heading)=><div className="factorbox"><h3>{heading}</h3>{s[key].map((x,i)=>{const product=num(x.rating)*num(x.weight);return <div className="factor" key={x.id}><div><b>{x.id} · {x.name}</b><small>{x.desc}</small></div><NumInput value={x.rating} min={RATING_MIN} max={RATING_MAX} aria-label={`Assigned value ${x.id} ${x.name}`} onCommit={v=>{const a=[...s[key]];a[i]={...a[i],rating:v};update([key],a)}}/><span>× {x.weight}</span><strong className={product<0?'neg':''}>{product.toFixed(2)}</strong></div>})}</div>;
+ return <div className="grid2">{list('tf','Technical Factors')}{list('ef','Environmental Factors')}<section className="panel"><div className="mini-results"><Card label="TF" value={c.tf.toFixed(2)}/><Card label="TCF" value={c.tcf.toFixed(3)}/></div></section><section className="panel"><div className="mini-results"><Card label="EF" value={c.ef.toFixed(2)}/><Card label="ECF" value={c.ecf.toFixed(3)}/></div></section><p className="hint wide">Kolom yang dapat diisi adalah <b>assigned value</b>, sedangkan <b>× bobot</b> di sebelahnya ditetapkan oleh model UCP dan tidak dapat diubah. Rentang yang diterima −5 sampai 5; UCP standar memakai 0–5, jadi nilai negatif akan membalik arah kontribusi faktor terhadap TF maupun EF.</p></div>;
 }
 
 function Calculation({s,c,update}){
