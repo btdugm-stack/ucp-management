@@ -20,7 +20,8 @@ export const seed={
  version:STATE_VERSION,
  project:{code:'UCP-001',name:'Sistem Informasi Alat dan Bahan',sponsor:'',owner:'',manager:'',description:'Estimasi proyek berbasis Use Case Point.',start:'',target:'',status:'Draft'},
  actors:[{id:'a1',name:'Mahasiswa',type:'Simple',qty:3},{id:'a2',name:'Admin',type:'Average',qty:2},{id:'a3',name:'External API',type:'Complex',qty:1}],
- useCases:[{id:'u1',code:'UC-001',name:'Login',actor:'Mahasiswa',transactions:3,type:'Simple',override:false},{id:'u2',code:'UC-002',name:'Kelola Data',actor:'Admin',transactions:7,type:'Average',override:false}],
+ modules:[],
+ useCases:[{id:'u1',code:'UC-001',name:'Login',actor:'Mahasiswa',transactions:3,type:'Simple',override:false,module:''},{id:'u2',code:'UC-002',name:'Kelola Data',actor:'Admin',transactions:7,type:'Average',override:false,module:''}],
  tf:factors(defaultTF),ef:factors(defaultEF),
  params:{phm:20,hours:8,days:22,targetMonths:10},
  phases:[{name:'Planning',weight:15},{name:'Analysis',weight:20},{name:'Design',weight:35},{name:'Implementation',weight:30}],
@@ -47,6 +48,18 @@ export function normalize(raw){
  project.status=pick(project.status,statuses,'Draft');
 
  const actors=arr(raw.actors).map(a=>({id:str(a?.id)||uid(),name:str(a?.name,'Actor'),type:pick(a?.type,Object.keys(actorWeights),'Simple'),qty:clamp(a?.qty,0,9999)}));
+
+ // Modul bersifat opsional. Kuncinya dibuat di klien dan ikut tersimpan,
+ // bukan memakai id baris database, karena baris anak ditulis ulang setiap
+ // kali menyimpan sehingga id barisnya berubah dan rujukan use case putus.
+ const usedKeys=new Set();
+ const modules=arr(raw.modules).map(m=>{
+  let key=str(m?.key);
+  while(!key||usedKeys.has(key))key=uid();
+  usedKeys.add(key);
+  return {key,code:str(m?.code),name:str(m?.name,'Modul')};
+ });
+
  const useCases=arr(raw.useCases).map(u=>{
   const transactions=clamp(u?.transactions,0,999);
   const type=pick(u?.type,complexity,deriveComplexity(transactions));
@@ -54,7 +67,9 @@ export function normalize(raw){
   // yang tipenya berbeda dari klasifikasi transaksi dikunci sebagai override
   // supaya estimasi yang sudah ada tidak berubah angkanya secara diam-diam.
   const override=legacy?type!==deriveComplexity(transactions):!!u?.override;
-  return {id:str(u?.id)||uid(),code:str(u?.code),name:str(u?.name,'Use Case'),actor:str(u?.actor),transactions,type,override};
+  // rujukan ke modul yang sudah dihapus dilepas, bukan dibiarkan menggantung
+  const module=usedKeys.has(str(u?.module))?str(u?.module):'';
+  return {id:str(u?.id)||uid(),code:str(u?.code),name:str(u?.name,'Use Case'),actor:str(u?.actor),transactions,type,override,module};
  });
 
  const ratings=(def,stored)=>{const by=new Map(arr(stored).map(x=>[str(x?.id),x]));return def.map(x=>({id:x[0],name:x[1],desc:x[2],weight:x[3],rating:clamp(by.get(x[0])?.rating??x[4],RATING_MIN,RATING_MAX)}))};
@@ -78,7 +93,7 @@ export function normalize(raw){
   organizational:pick(raw.feas?.organizational,levels,'Medium'),
   notes:str(raw.feas?.notes)
  };
- const out={version:STATE_VERSION,project,actors,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,custom,feas};
+ const out={version:STATE_VERSION,project,actors,modules,useCases,tf:ratings(defaultTF,raw.tf),ef:ratings(defaultEF,raw.ef),params,phases,roles,extras,custom,feas};
  if(typeof raw.savedAt==='string')out.savedAt=raw.savedAt;
  // Id baris database dibawa apa adanya bila ada, supaya state hasil muat
  // dari API tetap tahu proyek mana yang sedang dibuka.
@@ -138,6 +153,7 @@ export function emptyProject(){
  s.project={...s.project,code:'UCP-001',name:'Proyek Baru',description:'',sponsor:'',owner:'',manager:'',start:'',target:'',status:'Draft'};
  s.actors=[];
  s.useCases=[];
+ s.modules=[];
  return s;
 }
 
@@ -146,4 +162,12 @@ export function emptyProject(){
 export function nextCode(useCases){
  const max=useCases.reduce((m,u)=>{const n=/^UC-(\d+)$/i.exec((u.code||'').trim());return n?Math.max(m,Number(n[1])):m},0);
  return `UC-${String(max+1).padStart(3,'0')}`;
+}
+
+// Kode modul mengikuti pola yang sama dengan kode use case: diturunkan dari
+// sufiks tertinggi yang sudah dipakai agar penghapusan di tengah daftar tidak
+// menghasilkan kode kembar.
+export function nextModuleCode(modules){
+ const max=modules.reduce((m,x)=>{const n=/^M-?(\d+)$/i.exec((x.code||'').trim());return n?Math.max(m,Number(n[1])):m},0);
+ return `M${max+1}`;
 }

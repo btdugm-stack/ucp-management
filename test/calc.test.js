@@ -219,3 +219,82 @@ test('rating negatif tetap menghasilkan angka finite di seluruh rantai', () => {
  for(const [k,v] of Object.entries(c))
   if(typeof v==='number')assert.ok(Number.isFinite(v),`${k} tidak finite: ${v}`);
 });
+
+const denganModul=()=>{
+ const s=newState();
+ s.modules=[{key:'m1',code:'M1',name:'Autentikasi'},{key:'m2',code:'M2',name:'Master Data'}];
+ s.useCases=[
+  {id:'1',code:'UC-001',name:'Login',actor:'',transactions:3,type:'Simple',override:false,module:'m1'},
+  {id:'2',code:'UC-002',name:'Logout',actor:'',transactions:2,type:'Simple',override:false,module:'m1'},
+  {id:'3',code:'UC-003',name:'Kelola',actor:'',transactions:9,type:'Complex',override:false,module:'m2'},
+  {id:'4',code:'UC-004',name:'Lepas',actor:'',transactions:5,type:'Average',override:false,module:''}];
+ return s;
+};
+
+test('rekap modul mengelompokkan use case beserta bobotnya', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ assert.equal(c.uucw,5+5+15+10);
+ const [m1,m2,lepas]=c.moduleRows;
+ assert.equal(m1.name,'Autentikasi');
+ assert.deepEqual([m1.count,m1.Simple,m1.Average,m1.Complex,m1.uucw],[2,2,0,0,10]);
+ assert.deepEqual([m2.count,m2.Simple,m2.Average,m2.Complex,m2.uucw],[1,0,0,1,15]);
+ assert.equal(lepas.assigned,false,'use case tanpa modul masuk baris tersendiri');
+ assert.equal(lepas.name,'Tanpa modul');
+ assert.equal(lepas.uucw,10);
+});
+
+test('porsi modul berjumlah tepat satu dan effort terbagi sesuai porsi', () => {
+ const c=calculate(denganModul());
+ near(c.moduleRows.reduce((a,r)=>a+r.share,0),1);
+ near(c.moduleRows.reduce((a,r)=>a+r.pm,0),c.pm);
+ near(c.moduleRows.reduce((a,r)=>a+r.cost,0),c.cost);
+ const m2=c.moduleRows[1];
+ near(m2.share,15/35);
+ near(m2.pm,c.pm*15/35);
+});
+
+test('modul tanpa use case tetap muncul dengan nilai nol', () => {
+ const s=denganModul();
+ s.useCases=s.useCases.filter(u=>u.module!=='m2');
+ const c=calculate(s);
+ const m2=c.moduleRows.find(r=>r.key==='m2');
+ assert.equal(m2.count,0);
+ assert.equal(m2.uucw,0);
+ assert.equal(m2.share,0);
+ assert.ok(Number.isFinite(m2.pm));
+});
+
+test('rekap modul tetap aman tanpa modul dan tanpa use case', () => {
+ const kosong=calculate({...newState(),modules:[],useCases:[]});
+ assert.deepEqual(kosong.moduleRows,[]);
+ const tanpaModul=calculate(newState());
+ assert.equal(tanpaModul.moduleRows.length,1,'hanya baris tanpa modul');
+ assert.equal(tanpaModul.moduleRows[0].assigned,false);
+ assert.equal(tanpaModul.moduleRows[0].uucw,15);
+});
+
+test('kompleksitas efektif dipakai pada rekap, termasuk saat override', () => {
+ const s=denganModul();
+ s.useCases[0]={...s.useCases[0],type:'Complex',override:true};
+ const c=calculate(s);
+ const m1=c.moduleRows[0];
+ assert.equal(m1.Complex,1);
+ assert.equal(m1.Simple,1);
+ assert.equal(m1.uucw,15+5);
+});
+
+test('validate memperingatkan use case yang belum masuk modul', () => {
+ const s=denganModul();
+ const issues=validate(s,calculate(s));
+ assert.ok(issues.some(i=>i.level==='warn'&&/belum ditetapkan ke modul/i.test(i.message)));
+ // tanpa modul sama sekali, peringatan itu tidak muncul
+ const polos=newState();
+ assert.ok(!validate(polos,calculate(polos)).some(i=>/belum ditetapkan ke modul/i.test(i.message)));
+});
+
+test('validate menandai nama modul yang kembar', () => {
+ const s=denganModul();
+ s.modules=[{key:'m1',code:'M1',name:'Sama'},{key:'m2',code:'M2',name:'sama'}];
+ assert.ok(validate(s,calculate(s)).some(i=>i.level==='warn'&&/Nama modul duplikat/i.test(i.message)));
+});

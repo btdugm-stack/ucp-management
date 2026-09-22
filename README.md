@@ -82,7 +82,8 @@ api/          REST API PHP
   index.php   front controller dan routing
   db.php      koneksi PDO dan penyiapan skema
   repo.php    pemetaan tabel <-> bentuk state SPA
-  schema.sql  DDL
+  schema.sql  DDL (projects + actors, use cases, faktor,
+              fase, peran, dan modul)
 src/
   calc.js     mesin perhitungan UCP (murni, teruji)
   state.js    skema state, normalisasi, migrasi, penyangga draft
@@ -119,6 +120,19 @@ peringatan agar keputusan itu tetap terlihat.
 perubahan ditahan sebagai draft di browser dan ditawarkan untuk dipulihkan saat
 proyek dibuka kembali, sehingga database yang mati tidak berarti kehilangan
 pekerjaan. Gunakan **Export** untuk cadangan di luar database.
+
+**Modul aplikasi bersifat opsional.** Use case dapat dikelompokkan ke modul
+lewat tombol *Add Modul* pada Daftar Use Case, dan hasilnya dibaca pada submenu
+*Rekap per Modul*. Rekap menampilkan jumlah use case, sebaran Simple/Average/
+Complex, UUCW, dan porsi masing-masing modul. Effort serta biaya per modul
+dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang
+melekat pada masing-masing use case; UAW, TCF, dan ECF berlaku untuk proyek
+secara keseluruhan. Use case yang belum masuk modul tetap dihitung dan muncul
+pada baris *Tanpa modul*.
+
+Kunci modul (`module_key`) dibuat di klien dan ikut tersimpan, bukan memakai id
+baris database. Baris anak ditulis ulang setiap penyimpanan sehingga id barisnya
+berubah; memakai id baris akan memutus rujukan dari use case.
 
 **Assigned value bawaan** untuk proyek baru mengikuti daftar pada
 `defaultTF` dan `defaultEF` di `src/state.js`, bukan nilai seragam. Baseline

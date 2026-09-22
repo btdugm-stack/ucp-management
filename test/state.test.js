@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalize,newState,emptyProject,nextCode,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
+import {normalize,newState,emptyProject,nextCode,nextModuleCode,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
 import {calculate,deriveComplexity} from '../src/calc.js';
 
 // normalize() adalah satu-satunya pintu masuk data dari localStorage maupun
@@ -149,4 +149,35 @@ test('proyek yang sudah tersimpan tidak ikut berubah oleh bawaan baru', () => {
  const s=normalize(tersimpan);
  assert.ok(s.tf.every(f=>f.rating===1),'nilai tersimpan harus menang atas bawaan');
  assert.ok(s.ef.every(f=>f.rating===1));
+});
+
+test('kunci modul selalu unik dan bertahan lintas normalisasi', () => {
+ const s=normalize({...newState(),modules:[{key:'a',name:'Satu'},{key:'a',name:'Kembar'},{name:'Tanpa kunci'}]});
+ const keys=s.modules.map(m=>m.key);
+ assert.equal(new Set(keys).size,3);
+ assert.ok(keys.every(Boolean));
+ assert.equal(s.modules[0].key,'a','kunci yang sudah sah dipertahankan');
+ assert.deepEqual(normalize(s).modules.map(m=>m.key),keys,'normalisasi ulang tidak mengubah kunci');
+});
+
+test('rujukan use case ke modul yang hilang dilepas', () => {
+ const s=normalize({...newState(),
+  modules:[{key:'ada',code:'M1',name:'Ada'}],
+  useCases:[{code:'UC-1',module:'ada'},{code:'UC-2',module:'sudah-dihapus'},{code:'UC-3'}]});
+ assert.deepEqual(s.useCases.map(u=>u.module),['ada','','']);
+});
+
+test('modules selalu berupa array apa pun bentuk masukannya', () => {
+ for(const raw of [undefined,null,'x',{},{modules:'bukan array'},{modules:[null,5,'y']}]){
+  const s=normalize(raw);
+  assert.ok(Array.isArray(s.modules));
+  assert.ok(s.modules.every(m=>typeof m.key==='string'&&m.key.length>0));
+ }
+});
+
+test('nextModuleCode() tidak menghasilkan kode kembar', () => {
+ assert.equal(nextModuleCode([]),'M1');
+ assert.equal(nextModuleCode([{code:'M1'},{code:'M2'}]),'M3');
+ assert.equal(nextModuleCode([{code:'M1'},{code:'M3'}]),'M4');
+ assert.equal(nextModuleCode([{code:'Lain'}]),'M1');
 });

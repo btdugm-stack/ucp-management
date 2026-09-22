@@ -1,8 +1,8 @@
 import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
+import {Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
-import {newState,emptyProject,normalize,nextCode,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
+import {newState,emptyProject,normalize,nextCode,nextModuleCode,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
 import './styles.css';
 
@@ -294,7 +294,7 @@ function App(){
 
  const goStart=async()=>{if(status==='dirty')await saveNow();setView('start')};
 
- const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
+ const nav=[['dashboard','Dashboard',LayoutDashboard],['project','Project',FolderKanban],['actors','Actors',Users],['usecases','Use Cases',Workflow,[['usecases','Daftar Use Case'],['modules','Rekap per Modul']]],['factors','Factors',SlidersHorizontal],['calculation','Calculation',Calculator],['planning','Planning',CalendarDays],['staffing','Staffing',UsersRound],['cost','Cost',WalletCards],['feasibility','Feasibility',ShieldCheck]];
  const badge={dirty:['dirty','Perubahan belum tersimpan'],saving:['dirty','Menyimpan…'],saved:['saved','Tersimpan di database'],offline:['error','Gagal tersimpan — ditahan di browser']}[status]??['saved','Tersimpan'];
  const picker=<input ref={fileRef} type="file" accept="application/json,.json" onChange={importJson} hidden aria-hidden="true" tabIndex={-1}/>;
 
@@ -311,7 +311,13 @@ function App(){
   <aside>
    <div className="brand"><div className="logo">U</div><div><b>UCP Manager</b><small>Local Estimation Engine</small></div></div>
    <div className="project-mini"><span>PROJECT</span><strong>{s.project.name}</strong><small>{s.project.code}</small></div>
-   <nav aria-label="Navigasi modul">{nav.map(([id,text,Icon])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id} aria-current={tab===id?'page':undefined}><Icon size={18}/>{text}</button>)}</nav>
+   <nav aria-label="Navigasi modul">{nav.map(([id,text,Icon,children])=>{
+    const inGroup=children?children.some(([cid])=>cid===tab):tab===id;
+    return <React.Fragment key={id}>
+     <button className={inGroup?'active':''} onClick={()=>setTab(id)} aria-current={tab===id?'page':undefined} aria-expanded={children?inGroup:undefined}><Icon size={18}/>{text}</button>
+     {children&&inGroup&&<div className="subnav">{children.map(([cid,ctext])=><button key={cid} className={tab===cid?'active':''} onClick={()=>setTab(cid)} aria-current={tab===cid?'page':undefined}>{ctext}</button>)}</div>}
+    </React.Fragment>;
+   })}</nav>
    <div className="side-actions four">
     <button onClick={goStart}><House size={16}/>Beranda</button>
     <button onClick={exportJson}><Download size={16}/>Export</button>
@@ -333,6 +339,7 @@ function App(){
    {tab==='project'&&<Project s={s} update={update}/>}
    {tab==='actors'&&<Actors s={s} setS={setS} c={calc}/>}
    {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc}/>}
+   {tab==='modules'&&<ModuleRecap s={s} c={calc} go={setTab}/>}
    {tab==='factors'&&<Factors s={s} update={update} c={calc}/>}
    {tab==='calculation'&&<Calculation s={s} c={calc} update={update}/>}
    {tab==='planning'&&<Planning s={s} c={calc} update={update}/>}
@@ -343,7 +350,7 @@ function App(){
  </div>;
 }
 
-function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
+function title(t){return {dashboard:'Executive Dashboard',project:'Project Setup',actors:'Actor Analysis',usecases:'Use Case Analysis',modules:'Rekap Use Case per Modul',factors:'Technical & Environmental Factors',calculation:'UCP Calculation Engine',planning:'Phase & Schedule Planning',staffing:'Staffing Plan',cost:'Cost Estimation',feasibility:'Feasibility Assessment'}[t]}
 function Card({label,value,sub}){return <div className="card"><span>{label}</span><strong>{value}</strong>{sub&&<small>{sub}</small>}</div>}
 
 function Dashboard({s,c,go,update}){return <><section className="hero"><div><span className="pill">BASELINE ESTIMATE</span><h2>{s.project.name}</h2><p>{s.project.description}</p></div><div className="hero-number"><small>USE CASE POINT</small><b>{c.ucp.toFixed(2)}</b><span>{c.pm.toFixed(2)} person-month</span></div></section><div className="cards"><Card label="UCP" value={c.ucp.toFixed(2)} sub="Use Case Point"/><Card label="Person Hours" value={fmt(c.ph)} sub={`PHM ${s.params.phm}`}/><Card label="Person-Month" value={c.pm.toFixed(2)} sub="Effort"/><Card label="Duration" value={`${c.duration.toFixed(2)} mo`} sub="3 × PM^(1/3)"/></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Calculation Flow</h3><button onClick={()=>go('calculation')}>Open Engine <ChevronRight size={15}/></button></div><div className="flow"><div><b>{c.uaw.toFixed(0)}</b><small>UAW</small></div><i>+</i><div><b>{c.uucw.toFixed(0)}</b><small>UUCW</small></div><i>×</i><div><b>{c.tcf.toFixed(2)}</b><small>TCF</small></div><i>×</i><div><b>{c.ecf.toFixed(2)}</b><small>ECF</small></div><i>=</i><div className="accent"><b>{c.ucp.toFixed(2)}</b><small>UCP</small></div></div></section><section className="panel"><div className="panel-head"><h3>SDLC Distribution</h3><button onClick={()=>go('planning')}>Edit <ChevronRight size={15}/></button></div>{c.phase.map(p=><div className="barrow" key={p.name}><div><span>{p.name}</span><b>{p.duration.toFixed(2)} mo</b></div><div className="bar"><i style={{width:`${Math.min(100,num(p.weight))}%`}}/></div></div>)}</section></div><div className="grid2"><section className="panel"><div className="panel-head"><h3>Scenario Sensitivity</h3><button onClick={()=>go('calculation')}>Configure</button></div><table><caption className="sr-only">Sensitivitas estimasi terhadap PHM dan kapasitas kerja</caption><thead><tr><th scope="col">PHM</th><th scope="col">Capacity</th><th scope="col">Person-Month</th><th scope="col">Duration</th></tr></thead><tbody>{[[20,8,22],[20,10,26],[28,8,22],[28,10,26]].map(x=>{const pm=(c.ucp*x[0])/(x[1]*x[2]);return <tr key={x.join()}><td>{x[0]}</td><td>{x[1]}h × {x[2]}d</td><td>{pm.toFixed(2)}</td><td>{(3*Math.cbrt(pm)).toFixed(2)} mo</td></tr>})}</tbody></table></section><CustomScenario s={s} c={c} update={update}/></div></>}
@@ -379,25 +386,92 @@ function Actors({s,setS,c}){
 }
 
 function UseCases({s,setS,c}){
- const add=()=>setS(p=>({...p,useCases:[...p.useCases,{id:uid(),code:nextCode(p.useCases),name:'New Use Case',actor:'',transactions:3,type:'Simple',override:false}]}));
+ const add=()=>setS(p=>({...p,useCases:[...p.useCases,{id:uid(),code:nextCode(p.useCases),name:'New Use Case',actor:'',transactions:3,type:'Simple',override:false,module:''}]}));
  const patch=(id,k,v)=>setS(p=>({...p,useCases:p.useCases.map(x=>x.id===id?{...x,[k]:v}:x)}));
  const del=(id,name)=>{if(confirm(`Hapus use case "${name}"?`))setS(p=>({...p,useCases:p.useCases.filter(x=>x.id!==id)}))};
- return <section className="panel"><div className="panel-head"><h3>Use Cases</h3><button className="primary" onClick={add}><Plus size={15}/>Add Use Case</button></div>
-  <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption><thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
-  <tbody>{s.useCases.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);return <tr key={u.id}>
-   <td><input className="code" value={u.code} aria-label="Kode use case" onChange={e=>patch(u.id,'code',e.target.value)}/></td>
-   <td><input value={u.name} aria-label="Nama use case" onChange={e=>patch(u.id,'name',e.target.value)}/></td>
-   <td><input value={u.actor} aria-label="Actor terkait" onChange={e=>patch(u.id,'actor',e.target.value)}/></td>
-   <td><NumInput value={u.transactions} min={0} max={999} aria-label="Jumlah transaksi" onCommit={v=>patch(u.id,'transactions',v)}/></td>
-   <td>{u.override?<select value={u.type} aria-label="Kompleksitas manual" onChange={e=>patch(u.id,'type',e.target.value)}>{complexity.map(x=><option key={x}>{x}</option>)}</select>:<span className="derived">{derived}<small>dari {num(u.transactions)} transaksi</small></span>}</td>
-   <td><label className="check"><input type="checkbox" checked={u.override} aria-label={`Override kompleksitas ${u.code}`} onChange={e=>patch(u.id,'override',e.target.checked)}/><span>manual</span></label></td>
-   <td><b>{ucWeights[eff]}</b>{u.override&&u.type!==derived&&<small className="flag">≠ {derived}</small>}</td>
-   <td><button className="icon" aria-label={`Hapus use case ${u.name}`} onClick={()=>del(u.id,u.name)}><Trash2 size={15}/></button></td>
-  </tr>})}</tbody></table>
-  {!s.useCases.length&&<p className="hint">Belum ada use case. UUCW akan bernilai 0.</p>}
-  <div className="total">UUCW <b>{c.uucw}</b></div>
-  <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan.</p>
- </section>;
+ const addModule=()=>setS(p=>({...p,modules:[...p.modules,{key:uid(),code:nextModuleCode(p.modules),name:'Modul Baru'}]}));
+ const patchModule=(key,k,v)=>setS(p=>({...p,modules:p.modules.map(m=>m.key===key?{...m,[k]:v}:m)}));
+ // Menghapus modul tidak boleh menghapus use case di dalamnya; rujukannya
+ // dilepas saja sehingga use case kembali berstatus tanpa modul.
+ const delModule=(key,name)=>{
+  const dipakai=s.useCases.filter(u=>u.module===key).length;
+  const pesan=dipakai?`Hapus modul "${name}"? ${dipakai} use case di dalamnya tidak ikut terhapus, hanya dilepas dari modul.`:`Hapus modul "${name}"?`;
+  if(confirm(pesan))setS(p=>({...p,modules:p.modules.filter(m=>m.key!==key),useCases:p.useCases.map(u=>u.module===key?{...u,module:''}:u)}));
+ };
+ return <>
+  {!!s.modules.length&&<section className="panel">
+   <div className="panel-head"><h3>Modul Aplikasi</h3><span className="total">{s.modules.length} modul</span></div>
+   <table><caption className="sr-only">Daftar modul aplikasi</caption>
+    <thead><tr><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+    <tbody>{s.modules.map(m=>{const row=c.moduleRows.find(r=>r.key===m.key);return <tr key={m.key}>
+     <td><input className="code" value={m.code} aria-label="Kode modul" onChange={e=>patchModule(m.key,'code',e.target.value)}/></td>
+     <td><input value={m.name} aria-label="Nama modul" onChange={e=>patchModule(m.key,'name',e.target.value)}/></td>
+     <td>{row?.count??0}</td>
+     <td><b>{row?.uucw??0}</b></td>
+     <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key,m.name)}><Trash2 size={15}/></button></td>
+    </tr>})}</tbody></table>
+  </section>}
+
+  <section className="panel">
+   <div className="panel-head"><h3>Use Cases</h3><div className="head-buttons">
+    <button onClick={addModule}><Boxes size={15}/>Add Modul</button>
+    <button className="primary" onClick={add}><Plus size={15}/>Add Use Case</button>
+   </div></div>
+   <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption>
+   <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Modul</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+   <tbody>{s.useCases.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);return <tr key={u.id}>
+    <td><input className="code" value={u.code} aria-label="Kode use case" onChange={e=>patch(u.id,'code',e.target.value)}/></td>
+    <td><input value={u.name} aria-label="Nama use case" onChange={e=>patch(u.id,'name',e.target.value)}/></td>
+    <td>{s.modules.length
+     ?<select value={u.module} aria-label={`Modul untuk ${u.code}`} onChange={e=>patch(u.id,'module',e.target.value)}><option value="">— tanpa modul —</option>{s.modules.map(m=><option key={m.key} value={m.key}>{[m.code,m.name].filter(Boolean).join(' · ')}</option>)}</select>
+     :<span className="muted">—</span>}</td>
+    <td><input value={u.actor} aria-label="Actor terkait" onChange={e=>patch(u.id,'actor',e.target.value)}/></td>
+    <td><NumInput value={u.transactions} min={0} max={999} aria-label="Jumlah transaksi" onCommit={v=>patch(u.id,'transactions',v)}/></td>
+    <td>{u.override?<select value={u.type} aria-label="Kompleksitas manual" onChange={e=>patch(u.id,'type',e.target.value)}>{complexity.map(x=><option key={x}>{x}</option>)}</select>:<span className="derived">{derived}<small>dari {num(u.transactions)} transaksi</small></span>}</td>
+    <td><label className="check"><input type="checkbox" checked={u.override} aria-label={`Override kompleksitas ${u.code}`} onChange={e=>patch(u.id,'override',e.target.checked)}/><span>manual</span></label></td>
+    <td><b>{ucWeights[eff]}</b>{u.override&&u.type!==derived&&<small className="flag">≠ {derived}</small>}</td>
+    <td><button className="icon" aria-label={`Hapus use case ${u.name}`} onClick={()=>del(u.id,u.name)}><Trash2 size={15}/></button></td>
+   </tr>})}</tbody></table>
+   {!s.useCases.length&&<p className="hint">Belum ada use case. UUCW akan bernilai 0.</p>}
+   <div className="total">UUCW <b>{c.uucw}</b></div>
+   <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Modul bersifat opsional — tambahkan lewat <b>Add Modul</b> bila estimasi perlu dipecah per modul aplikasi.</p>
+  </section>
+ </>;
+}
+
+// Rekap per modul. Porsi effort, durasi, dan biaya dihitung proporsional
+// terhadap UUCW karena hanya UUCW yang melekat pada masing-masing use case.
+function ModuleRecap({s,c,go}){
+ const rows=c.moduleRows;
+ const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,pm:a.pm+r.pm,cost:a.cost+r.cost}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,pm:0,cost:0});
+ if(!s.modules.length&&!s.useCases.length)return <section className="panel"><div className="empty"><Boxes size={26}/><b>Belum ada use case</b><small>Tambahkan use case lebih dulu, lalu kelompokkan ke modul lewat tombol Add Modul.</small><div className="crash-actions"><button className="primary" onClick={()=>go('usecases')}>Buka Daftar Use Case<ChevronRight size={15}/></button></div></div></section>;
+ return <>
+  <div className="cards">
+   <Card label="Modul" value={s.modules.length} sub="kelompok aplikasi"/>
+   <Card label="Use Case" value={total.count}/>
+   <Card label="UUCW" value={total.uucw} sub="bobot use case"/>
+   <Card label="Effort" value={`${c.pm.toFixed(2)} PM`} sub="seluruh proyek"/>
+  </div>
+  <section className="panel">
+   <div className="panel-head"><h3>Rekap per Modul</h3><button onClick={()=>go('usecases')}>Kelola Modul <ChevronRight size={15}/></button></div>
+   {!s.modules.length
+    ?<p className="hint">Belum ada modul. Seluruh {total.count} use case dihitung sebagai satu kesatuan. Tambahkan modul lewat tombol <b>Add Modul</b> pada Daftar Use Case bila estimasi perlu dipecah.</p>
+    :null}
+   <table><caption className="sr-only">Rekap use case, UUCW, effort, dan biaya per modul</caption>
+    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">Porsi</th><th scope="col">Effort</th><th scope="col">Biaya</th></tr></thead>
+    <tbody>{rows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
+     <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
+     <td>{r.count}</td><td>{r.Simple}</td><td>{r.Average}</td><td>{r.Complex}</td>
+     <td><b>{r.uucw}</b></td>
+     <td><div className="share"><i style={{width:`${Math.min(100,r.share*100)}%`}}/></div><small>{(r.share*100).toFixed(1)}%</small></td>
+     <td>{r.pm.toFixed(2)} PM</td>
+     <td>{money(r.cost)}</td>
+    </tr>)}</tbody>
+    <tfoot><tr><td>Total</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>100%</td><td>{total.pm.toFixed(2)} PM</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
+   </table>
+   <p className="hint">Porsi dihitung dari UUCW, satu-satunya besaran UCP yang melekat pada masing-masing use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan sehingga effort dan biaya per modul bersifat proporsional, bukan hasil perhitungan UCP yang berdiri sendiri per modul.</p>
+  </section>
+ </>;
 }
 
 function Factors({s,update,c}){

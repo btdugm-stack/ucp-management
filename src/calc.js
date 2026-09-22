@@ -53,7 +53,35 @@ export function calculate(s){
  const resourceCost=s.roles.reduce((a,r)=>a+num(r.rate)*num(r.fte)*num(r.allocation)/100*duration,0);
  const extraCost=extraKeys.reduce((a,[k])=>a+num(s.extras?.[k]),0);
  const cost=resourceCost+extraCost;
- return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays};
+
+ // Rekap per modul. Pembagian effort dan biaya memakai porsi UUCW, karena
+ // UUCW satu-satunya besaran pada model UCP yang melekat pada masing-masing
+ // use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan dan
+ // tidak dapat dibagi per modul, jadi angka per modul bersifat proporsional.
+ const moduleList=Array.isArray(s.modules)?s.modules:[];
+ const known=new Map(moduleList.map(m=>[m.key,m]));
+ const rows=new Map();
+ const bucket=key=>{
+  if(!rows.has(key)){
+   const m=known.get(key);
+   rows.set(key,{key,code:m?.code??'',name:m?(m.name||'Tanpa nama'):'Tanpa modul',assigned:!!m,count:0,Simple:0,Average:0,Complex:0,transactions:0,uucw:0});
+  }
+  return rows.get(key);
+ };
+ for(const m of moduleList)bucket(m.key);
+ for(const u of s.useCases){
+  const r=bucket(known.has(u.module)?u.module:'');
+  const type=effectiveType(u);
+  r.count++;
+  r[type]=(r[type]||0)+1;
+  r.transactions+=clamp(u.transactions,0,999);
+  r.uucw+=ucWeights[type]||0;
+ }
+ const moduleRows=[...rows.values()].map(r=>{
+  const share=div(r.uucw,uucw);
+  return {...r,share,pm:pm*share,cost:cost*share,duration:duration*share};
+ });
+ return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays,moduleRows};
 }
 
 // Aturan yang dulu hanya ditulis di teks hint sekarang ditegakkan di sini
@@ -72,6 +100,14 @@ export function validate(s,c){
  if(forced.length)add('warn',`${forced.length} use case memakai override manual yang berbeda dari klasifikasi transaksi: ${forced.map(u=>u.code||u.name).join(', ')}.`);
  if(!s.roles.length)add('warn','Belum ada peran pada staffing, sehingga biaya sumber daya bernilai 0.');
  if(c.customProjectDays<=0)add('warn','Hari Durasi Project pada kalkulasi custom bernilai 0, sehingga jumlah Man tidak dapat dihitung.');
+ const modules=Array.isArray(s.modules)?s.modules:[];
+ const modNames=modules.map(m=>(m.name||'').trim().toLowerCase()).filter(Boolean);
+ const modDup=[...new Set(modNames.filter((x,i)=>modNames.indexOf(x)!==i))];
+ if(modDup.length)add('warn',`Nama modul duplikat: ${modDup.join(', ')}. Rekap per modul akan sulit dibaca.`);
+ if(modules.length){
+  const lepas=c.moduleRows.find(r=>!r.assigned);
+  if(lepas)add('warn',`${lepas.count} use case belum ditetapkan ke modul mana pun, sehingga tidak masuk rekap modul.`);
+ }
  if(c.targetMonths>0&&c.duration>0){
   const gap=Math.abs(c.duration-c.targetMonths);
   if(gap/c.targetMonths>.2)add('warn',`Durasi terhitung ${c.duration.toFixed(2)} bulan berbeda jauh dari target ${c.targetMonths} bulan. Rencana fase dan rencana staffing memakai dasar yang berbeda.`);

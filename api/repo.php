@@ -95,6 +95,12 @@ function ucp_get_project(PDO $pdo, int $id): ?array
         'qty'  => (float) $r['qty'],
     ], $children('SELECT * FROM project_actors WHERE project_id = ? ORDER BY sort_order, id'));
 
+    $modules = array_map(static fn(array $r): array => [
+        'key'  => $r['module_key'],
+        'code' => $r['code'],
+        'name' => $r['name'],
+    ], $children('SELECT * FROM project_modules WHERE project_id = ? ORDER BY sort_order, id'));
+
     $useCases = array_map(static fn(array $r): array => [
         'id'           => (string) $r['id'],
         'code'         => $r['code'],
@@ -103,6 +109,7 @@ function ucp_get_project(PDO $pdo, int $id): ?array
         'transactions' => (float) $r['transactions'],
         'type'         => $r['type'],
         'override'     => (bool) $r['is_override'],
+        'module'       => (string) ($r['module_key'] ?? ''),
     ], $children('SELECT * FROM project_use_cases WHERE project_id = ? ORDER BY sort_order, id'));
 
     $factors = ['technical' => [], 'environmental' => []];
@@ -139,6 +146,7 @@ function ucp_get_project(PDO $pdo, int $id): ?array
             'status'      => $p['status'],
         ],
         'actors'   => $actors,
+        'modules'  => $modules,
         'useCases' => $useCases,
         'tf'       => $factors['technical'],
         'ef'       => $factors['environmental'],
@@ -251,7 +259,7 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
         $id,
     ]);
 
-    foreach (['project_actors', 'project_use_cases', 'project_factors', 'project_phases', 'project_roles'] as $table) {
+    foreach (['project_actors', 'project_use_cases', 'project_factors', 'project_phases', 'project_roles', 'project_modules'] as $table) {
         $pdo->prepare("DELETE FROM {$table} WHERE project_id = ?")->execute([$id]);
     }
 
@@ -262,8 +270,22 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
         $insertActor->execute([$id, $i, ucp_str($a['name'] ?? ''), ucp_pick($a['type'] ?? null, UCP_COMPLEXITY, 'Simple'), (int) ucp_num($a['qty'] ?? null, 0, 9999)]);
     }
 
-    $insertUseCase = $pdo->prepare('INSERT INTO project_use_cases (project_id, sort_order, code, name, actor, transactions, type, is_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    // Modul ditulis lebih dulu agar kuncinya dapat dipakai menyaring rujukan
+    // use case, sehingga tidak ada use case yang menunjuk modul yang hilang.
+    $moduleKeys = [];
+    $insertModule = $pdo->prepare('INSERT INTO project_modules (project_id, sort_order, module_key, code, name) VALUES (?, ?, ?, ?, ?)');
+    foreach ($rows($state['modules'] ?? null) as $i => $m) {
+        $key = ucp_str($m['key'] ?? '', 20);
+        if ($key === '' || isset($moduleKeys[$key])) {
+            continue;
+        }
+        $moduleKeys[$key] = true;
+        $insertModule->execute([$id, $i, $key, ucp_str($m['code'] ?? '', 50), ucp_str($m['name'] ?? '')]);
+    }
+
+    $insertUseCase = $pdo->prepare('INSERT INTO project_use_cases (project_id, sort_order, code, name, actor, transactions, type, is_override, module_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
     foreach ($rows($state['useCases'] ?? null) as $i => $u) {
+        $module = ucp_str($u['module'] ?? '', 20);
         $insertUseCase->execute([
             $id, $i,
             ucp_str($u['code'] ?? '', 50),
@@ -272,6 +294,7 @@ function ucp_write_project(PDO $pdo, int $id, array $state): void
             (int) ucp_num($u['transactions'] ?? null, 0, 999),
             ucp_pick($u['type'] ?? null, UCP_COMPLEXITY, 'Simple'),
             !empty($u['override']) ? 1 : 0,
+            isset($moduleKeys[$module]) ? $module : '',
         ]);
     }
 

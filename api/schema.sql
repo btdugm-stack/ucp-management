@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS project_use_cases (
   transactions INT          NOT NULL DEFAULT 0,
   type         VARCHAR(10)  NOT NULL DEFAULT 'Simple',
   is_override  TINYINT(1)   NOT NULL DEFAULT 0,
+  module_key   VARCHAR(20)  NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   KEY idx_use_cases_project (project_id, sort_order),
   CONSTRAINT fk_use_cases_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
@@ -105,4 +106,21 @@ CREATE TABLE IF NOT EXISTS project_roles (
   PRIMARY KEY (id),
   KEY idx_roles_project (project_id, sort_order),
   CONSTRAINT fk_roles_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Modul aplikasi bersifat opsional dan hanya dipakai untuk rekap.
+-- module_key dibuat di klien dan ikut tersimpan, bukan memakai id baris,
+-- karena baris anak ditulis ulang setiap penyimpanan sehingga id-nya
+-- berubah dan rujukan dari use case akan putus.
+CREATE TABLE IF NOT EXISTS project_modules (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  project_id INT UNSIGNED NOT NULL,
+  sort_order INT          NOT NULL DEFAULT 0,
+  module_key VARCHAR(20)  NOT NULL,
+  code       VARCHAR(50)  NOT NULL DEFAULT '',
+  name       VARCHAR(200) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_module (project_id, module_key),
+  KEY idx_modules_project (project_id, sort_order),
+  CONSTRAINT fk_modules_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

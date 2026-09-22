@@ -66,16 +66,43 @@ function ucp_migrate(PDO $pdo): void
 function ucp_add_missing_columns(PDO $pdo): void
 {
     $wanted = [
-        'custom_working_days' => 'DECIMAL(6,2) NOT NULL DEFAULT 22',
-        'custom_project_days' => 'DECIMAL(10,2) NOT NULL DEFAULT 120',
+        'projects' => [
+            'custom_working_days' => 'DECIMAL(6,2) NOT NULL DEFAULT 22',
+            'custom_project_days' => 'DECIMAL(10,2) NOT NULL DEFAULT 120',
+        ],
+        'project_use_cases' => [
+            'module_key' => "VARCHAR(20) NOT NULL DEFAULT ''",
+        ],
     ];
-    $present = [];
-    foreach ($pdo->query('SHOW COLUMNS FROM projects')->fetchAll() as $column) {
-        $present[$column['Field']] = true;
+    foreach ($wanted as $table => $columns) {
+        $present = [];
+        foreach ($pdo->query(sprintf('SHOW COLUMNS FROM %s', $table))->fetchAll() as $column) {
+            $present[$column['Field']] = true;
+        }
+        foreach ($columns as $name => $definition) {
+            if (!isset($present[$name])) {
+                $pdo->exec(sprintf('ALTER TABLE %s ADD COLUMN `%s` %s', $table, $name, $definition));
+            }
+        }
     }
-    foreach ($wanted as $name => $definition) {
-        if (!isset($present[$name])) {
-            $pdo->exec(sprintf('ALTER TABLE projects ADD COLUMN `%s` %s', $name, $definition));
+    ucp_add_missing_tables($pdo);
+}
+
+/**
+ * Tabel yang lahir setelah pemasangan pertama. Pernyataan di schema.sql
+ * seluruhnya memakai IF NOT EXISTS, jadi menjalankan ulang bagian yang
+ * dibutuhkan aman dan tidak menyentuh tabel yang sudah berisi data.
+ */
+function ucp_add_missing_tables(PDO $pdo): void
+{
+    $sql = file_get_contents(__DIR__ . '/schema.sql');
+    if ($sql === false) {
+        return;
+    }
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+    foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
+        if (stripos($statement, 'CREATE TABLE IF NOT EXISTS project_modules') === 0) {
+            $pdo->exec($statement);
         }
     }
 }
