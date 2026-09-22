@@ -128,6 +128,18 @@ panel Modul Aplikasi. Tabel use case sendiri tidak memuat kolom penetapan modul;
 hasil penempatannya ditinjau pada submenu *Use Case per Modul* yang bersifat
 baca saja, sedangkan angkanya pada *Rekap per Modul*.
 
+Daftar use case pada Daftar Use Case disaring mengikuti modul aktif, sehingga
+menambah modul baru langsung menyajikan form yang bersih dan memilih modul lain
+menampilkan use case milik modul itu. Use case yang belum masuk modul tetap
+dapat dibuka lewat baris *Tanpa modul* pada panel Modul Aplikasi, yang muncul
+selama masih ada use case di luar modul.
+
+Kolom Actor pada use case memilih dari daftar pada **Actor Analysis**, bukan
+teks bebas. Nama actor tersimpan sebagai teks, jadi mengganti nama actor ikut
+memperbarui rujukan pada use case; rujukan yang tidak cocok dengan daftar tetap
+ditampilkan dan ditandai sebagai tidak terdaftar, serta diingatkan pada panel
+peringatan.
+
 Karena penempatan mengikuti modul aktif saat use case dibuat, use case yang
 terlanjur masuk modul yang keliru belum dapat dipindahkan dari antarmuka.
 

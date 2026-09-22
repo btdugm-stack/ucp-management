@@ -298,3 +298,17 @@ test('validate menandai nama modul yang kembar', () => {
  s.modules=[{key:'m1',code:'M1',name:'Sama'},{key:'m2',code:'M2',name:'sama'}];
  assert.ok(validate(s,calculate(s)).some(i=>i.level==='warn'&&/Nama modul duplikat/i.test(i.message)));
 });
+
+test('validate menandai actor yang tidak ada pada Actor Analysis', () => {
+ const s=newState();
+ s.actors=[{id:'a1',name:'Mahasiswa',type:'Simple',qty:1}];
+ s.useCases=[{id:'1',code:'UC-001',name:'a',actor:'Mahasiswa',transactions:3,type:'Simple',override:false,module:''},
+             {id:'2',code:'UC-002',name:'b',actor:'Dosen',transactions:3,type:'Simple',override:false,module:''}];
+ const pesan=validate(s,calculate(s)).filter(i=>/tidak ada pada Actor Analysis/i.test(i.message));
+ assert.equal(pesan.length,1);
+ assert.ok(pesan[0].message.includes('Dosen'));
+ assert.ok(!pesan[0].message.includes('Mahasiswa'));
+ // actor kosong bukan pelanggaran
+ s.useCases[1].actor='';
+ assert.ok(!validate(s,calculate(s)).some(i=>/tidak ada pada Actor Analysis/i.test(i.message)));
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalize,newState,emptyProject,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
+import {normalize,newState,emptyProject,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
 import {calculate,deriveComplexity} from '../src/calc.js';
 
 // normalize() adalah satu-satunya pintu masuk data dari localStorage maupun
@@ -207,11 +207,27 @@ test('newModule() memberi kunci unik, kode berurutan, dan nama berbeda', () => {
  assert.equal(newModule([],'Autentikasi').name,'Autentikasi','nama pilihan pengguna dihormati');
 });
 
-test('modul aktif selalu menunjuk modul yang ada', () => {
+test('pandangan aktif selalu menunjuk modul yang ada', () => {
  const modules=[{key:'a',code:'M1',name:'A'},{key:'b',code:'M2',name:'B'}];
- assert.equal(resolveActiveModule(modules,'a'),'a','pilihan sah dipertahankan');
- assert.equal(resolveActiveModule(modules,'sudah-dihapus'),'b','jatuh ke modul terakhir');
- assert.equal(resolveActiveModule(modules,''),'b');
- assert.equal(resolveActiveModule([],'a'),'','tanpa modul berarti tanpa penempatan');
- assert.equal(resolveActiveModule(null,'a'),'');
+ const terpasang=[{module:'a'},{module:'b'}];
+ const adaLepas=[{module:'a'},{module:''}];
+ assert.equal(resolveActiveModule(modules,terpasang,'a'),'a','pilihan sah dipertahankan');
+ assert.equal(resolveActiveModule(modules,terpasang,'sudah-dihapus'),'a','jatuh ke modul pertama');
+ assert.equal(resolveActiveModule(modules,terpasang,null),'a','tanpa pilihan berarti modul pertama');
+ assert.equal(resolveActiveModule(modules,terpasang,''),'a','pandangan tanpa modul ditutup bila tidak ada yang lepas');
+ assert.equal(resolveActiveModule(modules,adaLepas,''),'','pandangan tanpa modul terbuka bila ada yang lepas');
+ assert.equal(resolveActiveModule([],[{module:''}],''),'','tanpa modul sama sekali');
+ assert.equal(resolveActiveModule(null,null,'a'),'');
+});
+
+test('daftar use case disaring mengikuti pandangan aktif', () => {
+ const modules=[{key:'a',code:'M1',name:'A'},{key:'b',code:'M2',name:'B'}];
+ const cases=[{code:'UC-1',module:'a'},{code:'UC-2',module:'a'},{code:'UC-3',module:'b'},{code:'UC-4',module:''},{code:'UC-5',module:'hantu'}];
+ assert.deepEqual(useCasesInView(modules,cases,'a').map(u=>u.code),['UC-1','UC-2']);
+ assert.deepEqual(useCasesInView(modules,cases,'b').map(u=>u.code),['UC-3']);
+ // rujukan ke modul yang hilang ikut terbaca sebagai tanpa modul
+ assert.deepEqual(useCasesInView(modules,cases,'').map(u=>u.code),['UC-4','UC-5']);
+ // tanpa modul sama sekali, seluruhnya ditampilkan
+ assert.deepEqual(useCasesInView([],cases,'').map(u=>u.code),['UC-1','UC-2','UC-3','UC-4','UC-5']);
+ assert.deepEqual(useCasesInView(null,null,''),[]);
 });

@@ -2,7 +2,7 @@ import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
-import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
+import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject} from './api.js';
 import './styles.css';
 
@@ -181,7 +181,7 @@ function App(){
  const [tab,setTab]=useState('dashboard');
  const [status,setStatus]=useState('saved');
  const [legacy,setLegacy]=useState(legacyState);
- const [activeModule,setActiveModule]=useState('');
+ const [activeModule,setActiveModule]=useState(null);
  const fileRef=useRef(null);
  const importTarget=useRef('new');
  const skipSave=useRef(true);
@@ -222,7 +222,7 @@ function App(){
   skipSave.current=!dirty;
   setProjectId(id);
   setS(state);
-  setActiveModule(resolveActiveModule(state.modules,''));
+  setActiveModule(resolveActiveModule(state.modules,state.useCases,null));
   setStatus(dirty?'dirty':'saved');
   setTab(tabId);
   setView('app');
@@ -340,7 +340,7 @@ function App(){
    {tab==='dashboard'&&<Dashboard s={s} c={calc} go={setTab} update={update}/>}
    {tab==='project'&&<Project s={s} update={update}/>}
    {tab==='actors'&&<Actors s={s} setS={setS} c={calc}/>}
-   {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc} activeModule={activeModule} setActiveModule={setActiveModule}/>}
+   {tab==='usecases'&&<UseCases s={s} setS={setS} c={calc} activeModule={activeModule} setActiveModule={setActiveModule} go={setTab}/>}
    {tab==='modulepreview'&&<ModulePreview s={s} c={calc} go={setTab}/>}
    {tab==='modules'&&<ModuleRecap s={s} c={calc} go={setTab}/>}
    {tab==='factors'&&<Factors s={s} update={update} c={calc}/>}
@@ -383,20 +383,33 @@ function Project({s,update}){return <section className="panel form"><div classNa
 
 function Actors({s,setS,c}){
  const add=()=>setS(p=>({...p,actors:[...p.actors,{id:uid(),name:'New Actor',type:'Simple',qty:1}]}));
- const patch=(id,k,v)=>setS(p=>({...p,actors:p.actors.map(x=>x.id===id?{...x,[k]:v}:x)}));
+ // Nama actor tersimpan pada use case sebagai teks, jadi mengganti nama di
+ // sini harus ikut memperbarui rujukannya agar tidak berubah menjadi actor
+ // yang tidak terdaftar.
+ const patch=(id,k,v)=>setS(p=>{
+  const sebelum=p.actors.find(x=>x.id===id);
+  const actors=p.actors.map(x=>x.id===id?{...x,[k]:v}:x);
+  if(k!=='name'||!sebelum||sebelum.name===v)return {...p,actors};
+  return {...p,actors,useCases:p.useCases.map(u=>u.actor===sebelum.name?{...u,actor:v}:u)};
+ });
  const del=(id,name)=>{if(confirm(`Hapus actor "${name}"?`))setS(p=>({...p,actors:p.actors.filter(x=>x.id!==id)}))};
  return <section className="panel"><div className="panel-head"><h3>Actors</h3><button className="primary" onClick={add}><Plus size={15}/>Add Actor</button></div><table><caption className="sr-only">Daftar actor dan bobotnya</caption><thead><tr><th scope="col">Actor</th><th scope="col">Classification</th><th scope="col">Qty</th><th scope="col">Weight</th><th scope="col">Subtotal</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead><tbody>{s.actors.map(a=><tr key={a.id}><td><input value={a.name} aria-label="Nama actor" onChange={e=>patch(a.id,'name',e.target.value)}/></td><td><select value={a.type} aria-label="Klasifikasi actor" onChange={e=>patch(a.id,'type',e.target.value)}>{Object.keys(actorWeights).map(x=><option key={x}>{x}</option>)}</select></td><td><NumInput value={a.qty} min={0} max={9999} aria-label="Jumlah actor" onCommit={v=>patch(a.id,'qty',v)}/></td><td>{actorWeights[a.type]}</td><td><b>{num(a.qty)*actorWeights[a.type]}</b></td><td><button className="icon" aria-label={`Hapus actor ${a.name}`} onClick={()=>del(a.id,a.name)}><Trash2 size={15}/></button></td></tr>)}</tbody></table>{!s.actors.length&&<p className="hint">Belum ada actor. UAW akan bernilai 0.</p>}<div className="total">UAW <b>{c.uaw}</b></div></section>;
 }
 
-function UseCases({s,setS,c,activeModule,setActiveModule}){
- const active=resolveActiveModule(s.modules,activeModule);
+function UseCases({s,setS,c,activeModule,setActiveModule,go}){
+ const active=resolveActiveModule(s.modules,s.useCases,activeModule);
  const aktif=s.modules.find(m=>m.key===active);
- const add=()=>setS(p=>({...p,useCases:[...p.useCases,newUseCase(p.useCases,resolveActiveModule(p.modules,active))]}));
+ const tampil=useCasesInView(s.modules,s.useCases,active);
+ const lepas=c.moduleRows.find(r=>!r.assigned);
+ const subtotal=tampil.reduce((a,u)=>a+(ucWeights[effectiveType(u)]||0),0);
+ const namaActor=s.actors.map(a=>(a.name||'').trim()).filter(Boolean);
+
+ const add=()=>setS(p=>({...p,useCases:[...p.useCases,newUseCase(p.useCases,resolveActiveModule(p.modules,p.useCases,active))]}));
  const patch=(id,k,v)=>setS(p=>({...p,useCases:p.useCases.map(x=>x.id===id?{...x,[k]:v}:x)}));
  const del=(id,name)=>{if(confirm(`Hapus use case "${name}"?`))setS(p=>({...p,useCases:p.useCases.filter(x=>x.id!==id)}))};
- // Modul yang baru dibuat langsung menjadi tujuan penempatan, sehingga
- // menambahkan modul lalu menambahkan use case sudah cukup tanpa langkah
- // penetapan terpisah.
+ // Modul yang baru dibuat langsung menjadi tujuan penempatan sekaligus
+ // pandangan yang ditampilkan, sehingga daftarnya terlihat kosong dan siap
+ // diisi, bukan memperlihatkan use case milik modul lain.
  const addModule=()=>setS(p=>{const m=newModule(p.modules);setActiveModule(m.key);return {...p,modules:[...p.modules,m]}});
  const patchModule=(key,k,v)=>setS(p=>({...p,modules:p.modules.map(m=>m.key===key?{...m,[k]:v}:m)}));
  const delModule=(key,name)=>{
@@ -404,42 +417,57 @@ function UseCases({s,setS,c,activeModule,setActiveModule}){
   const pesan=dipakai?`Hapus modul "${name}"? ${dipakai} use case di dalamnya tidak ikut terhapus, hanya dilepas dari modul.`:`Hapus modul "${name}"?`;
   if(confirm(pesan))setS(p=>({...p,modules:p.modules.filter(m=>m.key!==key),useCases:p.useCases.map(u=>u.module===key?{...u,module:''}:u)}));
  };
+
+ const judul=s.modules.length?(aktif?`Use Cases · ${[aktif.code,aktif.name].filter(Boolean).join(' · ')}`:'Use Cases · Tanpa modul'):'Use Cases';
  return <>
   {!!s.modules.length&&<section className="panel">
    <div className="panel-head"><h3>Modul Aplikasi</h3><span className="total">{s.modules.length} modul</span></div>
    <table><caption className="sr-only">Daftar modul aplikasi dan modul yang sedang aktif</caption>
     <thead><tr><th scope="col">Aktif</th><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
     <tbody>{s.modules.map(m=>{const row=c.moduleRows.find(r=>r.key===m.key);return <tr key={m.key} className={m.key===active?'aktif':''}>
-     <td><label className="check"><input type="radio" name="modul-aktif" checked={m.key===active} aria-label={`Jadikan ${m.name} modul aktif`} onChange={()=>setActiveModule(m.key)}/><span>{m.key===active?'aktif':''}</span></label></td>
+     <td><label className="check"><input type="radio" name="modul-aktif" checked={m.key===active} aria-label={`Tampilkan use case ${m.name}`} onChange={()=>setActiveModule(m.key)}/><span>{m.key===active?'aktif':''}</span></label></td>
      <td><input className="code" value={m.code} aria-label="Kode modul" onChange={e=>patchModule(m.key,'code',e.target.value)}/></td>
      <td><input value={m.name} aria-label="Nama modul" onChange={e=>patchModule(m.key,'name',e.target.value)}/></td>
      <td>{row?.count??0}</td>
      <td><b>{row?.uucw??0}</b></td>
      <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key,m.name)}><Trash2 size={15}/></button></td>
-    </tr>})}</tbody></table>
-   <p className="hint">Use case yang ditambahkan akan masuk ke modul yang bertanda <b>aktif</b>. Pilih baris lain untuk memindahkan tujuan penempatan sebelum menambah use case berikutnya.</p>
+    </tr>})}
+    {(lepas||active==='')&&<tr className={active===''?'aktif':''}>
+     <td><label className="check"><input type="radio" name="modul-aktif" checked={active===''} aria-label="Tampilkan use case tanpa modul" onChange={()=>setActiveModule('')}/><span>{active===''?'aktif':''}</span></label></td>
+     <td><span className="muted">—</span></td>
+     <td><i>Tanpa modul</i></td>
+     <td>{lepas?.count??0}</td>
+     <td><b>{lepas?.uucw??0}</b></td>
+     <td/>
+    </tr>}</tbody></table>
+   <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul.</p>
   </section>}
 
   <section className="panel">
-   <div className="panel-head"><h3>Use Cases</h3><div className="head-buttons">
+   <div className="panel-head"><h3>{judul}</h3><div className="head-buttons">
     <button onClick={addModule}><Boxes size={15}/>Add Modul</button>
     <button className="primary" onClick={add}><Plus size={15}/>Add Use Case{aktif&&<span className="target">→ {aktif.code||aktif.name}</span>}</button>
    </div></div>
    <table><caption className="sr-only">Daftar use case, jumlah transaksi, dan kompleksitasnya</caption>
    <thead><tr><th scope="col">ID</th><th scope="col">Name</th><th scope="col">Actor</th><th scope="col">Transactions</th><th scope="col">Complexity</th><th scope="col">Override</th><th scope="col">Weight</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
-   <tbody>{s.useCases.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);return <tr key={u.id}>
+   <tbody>{tampil.map(u=>{const derived=deriveComplexity(u.transactions);const eff=effectiveType(u);const asing=u.actor&&!namaActor.includes(u.actor.trim());return <tr key={u.id}>
     <td><input className="code" value={u.code} aria-label="Kode use case" onChange={e=>patch(u.id,'code',e.target.value)}/></td>
     <td><input value={u.name} aria-label="Nama use case" onChange={e=>patch(u.id,'name',e.target.value)}/></td>
-    <td><input value={u.actor} aria-label="Actor terkait" onChange={e=>patch(u.id,'actor',e.target.value)}/></td>
+    <td><select className={asing?'asing':''} value={u.actor} aria-label={`Actor untuk ${u.code}`} onChange={e=>patch(u.id,'actor',e.target.value)}>
+     <option value="">— pilih actor —</option>
+     {namaActor.map(n=><option key={n} value={n}>{n}</option>)}
+     {asing&&<option value={u.actor}>{u.actor} (tidak terdaftar)</option>}
+    </select></td>
     <td><NumInput value={u.transactions} min={0} max={999} aria-label="Jumlah transaksi" onCommit={v=>patch(u.id,'transactions',v)}/></td>
     <td>{u.override?<select value={u.type} aria-label="Kompleksitas manual" onChange={e=>patch(u.id,'type',e.target.value)}>{complexity.map(x=><option key={x}>{x}</option>)}</select>:<span className="derived">{derived}<small>dari {num(u.transactions)} transaksi</small></span>}</td>
     <td><label className="check"><input type="checkbox" checked={u.override} aria-label={`Override kompleksitas ${u.code}`} onChange={e=>patch(u.id,'override',e.target.checked)}/><span>manual</span></label></td>
     <td><b>{ucWeights[eff]}</b>{u.override&&u.type!==derived&&<small className="flag">≠ {derived}</small>}</td>
     <td><button className="icon" aria-label={`Hapus use case ${u.name}`} onClick={()=>del(u.id,u.name)}><Trash2 size={15}/></button></td>
    </tr>})}</tbody></table>
-   {!s.useCases.length&&<p className="hint">Belum ada use case. UUCW akan bernilai 0.</p>}
-   <div className="total">UUCW <b>{c.uucw}</b></div>
-   <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Modul bersifat opsional — penempatan use case ke modul dapat ditinjau pada submenu <b>Use Case per Modul</b>.</p>
+   {!tampil.length&&<p className="hint">{s.modules.length?<>Belum ada use case pada {aktif?`modul ${[aktif.code,aktif.name].filter(Boolean).join(' · ')}`:'kelompok tanpa modul'}. Tekan <b>Add Use Case</b> untuk mulai mengisi.</>:<>Belum ada use case. UUCW akan bernilai 0.</>}</p>}
+   {!namaActor.length&&<p className="hint">Belum ada actor pada <b>Actor Analysis</b>, sehingga kolom Actor belum dapat diisi. <button className="linklike" onClick={()=>go('actors')}>Buka Actor Analysis<ChevronRight size={13}/></button></p>}
+   <div className="total">{s.modules.length?<>UUCW modul <b>{subtotal}</b> · seluruh proyek <b>{c.uucw}</b></>:<>UUCW <b>{c.uucw}</b></>}</div>
+   <p className="hint">Kompleksitas diturunkan dari jumlah transaksi sesuai model UCP: ≤3 Simple, 4–7 Average, &gt;7 Complex. Centang <b>manual</b> hanya bila analis sengaja menetapkan bobot yang berbeda; selisihnya akan ditandai pada panel peringatan. Penempatan seluruh use case dapat ditinjau sekaligus pada submenu <b>Use Case per Modul</b>.</p>
   </section>
  </>;
 }

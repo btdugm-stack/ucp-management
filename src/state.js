@@ -184,10 +184,30 @@ export function newModule(modules,name){
  const code=nextModuleCode(modules);
  return {key:uid(),code,name:name||`Modul ${code}`};
 }
-// Modul aktif harus selalu menunjuk modul yang benar-benar ada. Ketika modul
-// aktif dihapus, pilihan jatuh ke modul terakhir, dan menjadi kosong bila
-// tidak ada modul sama sekali.
-export function resolveActiveModule(modules,key){
- if(!Array.isArray(modules)||!modules.length)return '';
- return modules.some(m=>m.key===key)?key:modules[modules.length-1].key;
+// Pandangan aktif pada Daftar Use Case: sebuah kunci modul, atau string
+// kosong yang berarti pandangan "tanpa modul". Pandangan tanpa modul hanya
+// tersedia selama masih ada use case di luar modul, agar tidak muncul
+// pandangan kosong yang tidak berguna. Melewatkan null berarti tidak punya
+// pilihan, sehingga jatuh ke modul pertama.
+export function resolveActiveModule(modules,useCases,key){
+ const list=Array.isArray(modules)?modules:[];
+ const keys=new Set(list.map(m=>m.key));
+ const pertama=list.length?list[0].key:'';
+ if(key===null||key===undefined)return pertama;
+ if(key&&keys.has(key))return key;
+ if(key===''){
+  const adaLepas=(Array.isArray(useCases)?useCases:[]).some(u=>!keys.has(u?.module));
+  if(adaLepas||!list.length)return '';
+ }
+ return pertama;
+}
+
+// Use case yang tampil pada pandangan tertentu. Tanpa modul sama sekali,
+// seluruh use case ditampilkan apa adanya.
+export function useCasesInView(modules,useCases,active){
+ const cases=Array.isArray(useCases)?useCases:[];
+ const list=Array.isArray(modules)?modules:[];
+ if(!list.length)return cases;
+ const keys=new Set(list.map(m=>m.key));
+ return cases.filter(u=>(keys.has(u?.module)?u.module:'')===active);
 }

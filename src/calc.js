@@ -99,6 +99,9 @@ export function validate(s,c){
  const forced=s.useCases.filter(u=>u.override&&u.type!==deriveComplexity(u.transactions));
  if(forced.length)add('warn',`${forced.length} use case memakai override manual yang berbeda dari klasifikasi transaksi: ${forced.map(u=>u.code||u.name).join(', ')}.`);
  if(!s.roles.length)add('warn','Belum ada peran pada staffing, sehingga biaya sumber daya bernilai 0.');
+ const namaActor=new Set(s.actors.map(a=>(a.name||'').trim()).filter(Boolean));
+ const actorAsing=[...new Set(s.useCases.map(u=>(u.actor||'').trim()).filter(n=>n&&!namaActor.has(n)))];
+ if(actorAsing.length)add('warn',`Use case merujuk actor yang tidak ada pada Actor Analysis: ${actorAsing.join(', ')}.`);
  if(c.customProjectDays<=0)add('warn','Hari Durasi Project pada kalkulasi custom bernilai 0, sehingga jumlah Man tidak dapat dihitung.');
  const modules=Array.isArray(s.modules)?s.modules:[];
  const modNames=modules.map(m=>(m.name||'').trim().toLowerCase()).filter(Boolean);

@@ -148,3 +148,7 @@ tr.aktif td{border-bottom-color:#e8dcc9}
 .check input[type=radio]{width:14px;height:14px;min-width:auto;padding:0}
 .target{font-weight:700;opacity:.8;font-size:11px;margin-left:2px}
 .tag{display:inline-block;margin-left:8px;background:#f1eadf;color:#7a4e28;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:800;vertical-align:middle}
+
+td select.asing{border-color:#e4b4b0;background:#fdf7f6;color:#a3352f}
+.linklike{border:0;background:transparent;color:#8b5e34;font-weight:700;font-size:inherit;padding:0;display:inline-flex;align-items:center;gap:2px;text-decoration:underline}
+tbody tr td i{font-style:italic;color:#64748b}
