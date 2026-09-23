@@ -398,7 +398,7 @@ function CustomScenario({s,c,update,go}){
  // dihapus saat pandangan itu terbuka, tampilan dikembalikan ke seluruh proyek
  // alih-alih menyisakan tabel kosong.
  const tampilan=adaModul?mode:'proyek';
- const total=c.moduleRows.reduce((a,r)=>({pm:a.pm+r.pm,mandays:a.mandays+r.mandays,man:a.man+r.man,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp}),{pm:0,mandays:0,man:0,uucw:0,ucp:0});
+ const total=c.moduleRows.reduce((a,r)=>({pm:a.pm+r.pm,mandays:a.mandays+r.mandays,man:a.man+r.man,ucp:a.ucp+r.ucp}),{pm:0,mandays:0,man:0,ucp:0});
 
  return <section className="panel">
   <div className="panel-head"><h3><span className="judul">Kalkulasi Custom</span><span className="pill">MANDAYS &amp; MAN</span></h3>{go&&<button onClick={()=>go('calculation')}>Parameter Effort <ChevronRight size={15}/></button>}</div>
@@ -436,18 +436,17 @@ function CustomScenario({s,c,update,go}){
    <p className="hint">PM dan M diambil dari perhitungan default: effort {fmt(c.pm)} person-month dan durasi {fmt(c.duration)} bulan. Dengan {fmt(c.customWorkingDays)} hari kerja per bulan, durasi itu setara {fmt(c.durationDays)} hari kerja.</p>
   </>:<>
    <div className="tablewrap lebar"><table><caption className="sr-only">Mandays dan Man per modul aplikasi</caption>
-    <thead><tr><th scope="col">Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">PM</th><th scope="col">M (bulan)</th><th scope="col">Mandays</th><th scope="col">Man</th></tr></thead>
+    <thead><tr><th scope="col">Modul</th><th scope="col">Use Case</th><th scope="col">UCP</th><th scope="col">PM</th><th scope="col">M (bulan)</th><th scope="col">Mandays</th><th scope="col">Man</th></tr></thead>
     <tbody>{c.moduleRows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
      <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
      <td>{r.count}</td>
-     <td><b>{r.uucw}</b></td>
      <td>{fmt(r.ucp)}</td>
      <td>{fmt(r.pm)}</td>
      <td>{fmt(r.duration)}</td>
      <td><b>{fmt(r.mandays)}</b></td>
      <td><b>{fmt(r.man)}</b></td>
     </tr>)}</tbody>
-    <tfoot><tr><td>Jumlah</td><td>{s.useCases.length}</td><td><b>{total.uucw}</b></td><td>{fmt(total.ucp)}</td><td>{fmt(total.pm)}</td><td>—</td><td><b>{fmt(total.mandays)}</b></td><td><b>{fmt(total.man)}</b></td></tr></tfoot>
+    <tfoot><tr><td>Jumlah</td><td>{s.useCases.length}</td><td>{fmt(total.ucp)}</td><td>{fmt(total.pm)}</td><td>—</td><td><b>{fmt(total.mandays)}</b></td><td><b>{fmt(total.man)}</b></td></tr></tfoot>
    </table></div>
    <div className="formula"><b>Per modul</b><code>UCP modul = (UAW modul + UUCW modul) × {fmt(c.tcf)} × {fmt(c.ecf)} , lalu PM modul dan M modul = 3 × PM^(1/3)</code></div>
    <div className="formula"><b>Mandays dan Man</b><code>PM modul × M modul × {fmt(c.customWorkingDays)} , lalu ÷ {fmt(c.customProjectDays)} hari durasi project</code></div>
