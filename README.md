@@ -207,6 +207,12 @@ melekat pada masing-masing use case; UAW, TCF, dan ECF berlaku untuk proyek
 secara keseluruhan. Use case yang belum masuk modul tetap dihitung dan muncul
 pada baris *Tanpa modul*.
 
+**Menghapus modul ikut menghapus seluruh use case di dalamnya.** Konfirmasinya
+menyebutkan berapa use case yang hilang dan berapa UUCW proyek berkurang, karena
+tindakan itu tidak dapat dibatalkan. Use case tanpa modul dan modul lain tidak
+terpengaruh. Untuk menyelamatkan isinya lebih dulu, gunakan *Export Use Case*
+pada Daftar Use Case, atau *Export* JSON pada sidebar.
+
 Kunci modul (`module_key`) dibuat di klien dan ikut tersimpan, bukan memakai id
 baris database. Baris anak ditulis ulang setiap penyimpanan sehingga id barisnya
 berubah; memakai id baris akan memutus rujukan dari use case.

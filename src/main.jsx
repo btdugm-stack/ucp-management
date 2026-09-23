@@ -2,7 +2,7 @@ import React,{useMemo,useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {FileSpreadsheet,FileText,LoaderCircle,Boxes,Database,Copy,LayoutDashboard,FolderKanban,Users,Workflow,SlidersHorizontal,Calculator,CalendarDays,UsersRound,WalletCards,ShieldCheck,Save,RotateCcw,Plus,Trash2,Download,Upload,ChevronRight,FileDown,TriangleAlert,CircleAlert,CircleCheck,FilePlus2,FolderOpen,Sparkles,ArrowRight,Clock,House} from 'lucide-react';
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
-import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
+import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,deleteModule,moduleImpact,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject,buildReport,readSpreadsheet} from './api.js';
 import {specExcel,specWord} from './report.js';
 import {specUseCaseSheet,parseUseCaseSheet,applyUseCaseImport} from './usecaseio.js';
@@ -430,10 +430,18 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
  // diisi, bukan memperlihatkan use case milik modul lain.
  const addModule=()=>setS(p=>{const m=newModule(p.modules);setActiveModule(m.key);return {...p,modules:[...p.modules,m]}});
  const patchModule=(key,k,v)=>setS(p=>({...p,modules:p.modules.map(m=>m.key===key?{...m,[k]:v}:m)}));
- const delModule=(key,name)=>{
-  const dipakai=s.useCases.filter(u=>u.module===key).length;
-  const pesan=dipakai?`Hapus modul "${name}"? ${dipakai} use case di dalamnya tidak ikut terhapus, hanya dilepas dari modul.`:`Hapus modul "${name}"?`;
-  if(confirm(pesan))setS(p=>({...p,modules:p.modules.filter(m=>m.key!==key),useCases:p.useCases.map(u=>u.module===key?{...u,module:''}:u)}));
+ // Menghapus modul ikut menghapus use case di dalamnya, jadi pesannya
+ // menyebutkan berapa baris yang hilang beserta bobot yang berkurang agar
+ // besarnya dampak terlihat sebelum dikonfirmasi.
+ const delModule=key=>{
+  const {label,jumlah,useCases}=moduleImpact(s,key);
+  const bobot=useCases.reduce((a,u)=>a+(ucWeights[effectiveType(u)]||0),0);
+  const pesan=jumlah
+   ?`Hapus modul "${label}" beserta ${jumlah} use case di dalamnya?
+
+Seluruh use case itu ikut terhapus dan tidak dapat dikembalikan. UUCW proyek berkurang ${bobot}, dari ${c.uucw} menjadi ${c.uucw-bobot}.`
+   :`Hapus modul "${label}"? Modul ini belum berisi use case.`;
+  if(confirm(pesan))setS(p=>deleteModule(p,key));
  };
 
  const unduh=async(jenis,spec)=>{
@@ -474,7 +482,7 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
      <td>{row?.count??0}</td>
      <td><b>{row?.uucw??0}</b></td>
      <td><b>{(row?.ucp??0).toFixed(2)}</b><small className="flag">{((row?.share??0)*100).toFixed(1)}%</small></td>
-     <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key,m.name)}><Trash2 size={15}/></button></td>
+     <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key)}><Trash2 size={15}/></button></td>
     </tr>})}
     {(lepas||active==='')&&<tr className={active===''?'aktif':''}>
      <td><label className="check"><input type="radio" name="modul-aktif" checked={active===''} aria-label="Tampilkan use case tanpa modul" onChange={()=>setActiveModule('')}/><span>{active===''?'aktif':''}</span></label></td>

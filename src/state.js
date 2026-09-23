@@ -211,3 +211,23 @@ export function useCasesInView(modules,useCases,active){
  const keys=new Set(list.map(m=>m.key));
  return cases.filter(u=>(keys.has(u?.module)?u.module:'')===active);
 }
+
+// Menghapus modul sekaligus seluruh use case di dalamnya. Perhitungan lain
+// mengikuti sendiri karena UUCW dan turunannya dihitung ulang dari daftar use
+// case yang tersisa. Rujukan menggantung tidak mungkin muncul karena barisnya
+// ikut terhapus, bukan ditinggalkan menunjuk modul yang sudah tiada.
+export function deleteModule(s,key){
+ if(!key)return s;
+ return {
+  ...s,
+  modules:s.modules.filter(m=>m.key!==key),
+  useCases:s.useCases.filter(u=>u.module!==key)
+ };
+}
+
+/** Ringkasan dampak penghapusan, dipakai untuk menyusun pesan konfirmasi. */
+export function moduleImpact(s,key){
+ const modul=s.modules.find(m=>m.key===key)||null;
+ const milik=s.useCases.filter(u=>u.module===key);
+ return {modul,label:modul?[modul.code,modul.name].filter(Boolean).join(' · '):'',jumlah:milik.length,useCases:milik};
+}

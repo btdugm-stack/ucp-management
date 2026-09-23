@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalize,newState,emptyProject,nextCode,nextModuleCode,newUseCase,newModule,resolveActiveModule,useCasesInView,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
+import {normalize,newState,emptyProject,nextCode,nextModuleCode,newUseCase,newModule,deleteModule,moduleImpact,resolveActiveModule,useCasesInView,seed,STATE_VERSION,defaultTF,defaultEF} from '../src/state.js';
 import {calculate,deriveComplexity} from '../src/calc.js';
 
 // normalize() adalah satu-satunya pintu masuk data dari localStorage maupun
@@ -230,4 +230,64 @@ test('daftar use case disaring mengikuti pandangan aktif', () => {
  // tanpa modul sama sekali, seluruhnya ditampilkan
  assert.deepEqual(useCasesInView([],cases,'').map(u=>u.code),['UC-1','UC-2','UC-3','UC-4','UC-5']);
  assert.deepEqual(useCasesInView(null,null,''),[]);
+});
+
+test('menghapus modul ikut menghapus use case di dalamnya', () => {
+ const s=newState();
+ s.modules=[{key:'a',code:'M1',name:'Satu'},{key:'b',code:'M2',name:'Dua'}];
+ s.useCases=[
+  {id:'1',code:'UC-001',name:'a',actor:'',transactions:3,type:'Simple',override:false,module:'a'},
+  {id:'2',code:'UC-002',name:'b',actor:'',transactions:3,type:'Simple',override:false,module:'a'},
+  {id:'3',code:'UC-003',name:'c',actor:'',transactions:3,type:'Simple',override:false,module:'b'},
+  {id:'4',code:'UC-004',name:'d',actor:'',transactions:3,type:'Simple',override:false,module:''},
+ ];
+ const setelah=deleteModule(s,'a');
+ assert.deepEqual(setelah.modules.map(m=>m.key),['b']);
+ assert.deepEqual(setelah.useCases.map(u=>u.code),['UC-003','UC-004'],'hanya isi modul a yang hilang');
+ assert.equal(s.useCases.length,4,'state semula tidak berubah');
+});
+
+test('menghapus modul tidak menyentuh use case tanpa modul maupun modul lain', () => {
+ const s=newState();
+ s.modules=[{key:'a',code:'M1',name:'Satu'}];
+ s.useCases=[{id:'1',code:'UC-001',name:'lepas',actor:'',transactions:3,type:'Simple',override:false,module:''}];
+ const setelah=deleteModule(s,'a');
+ assert.deepEqual(setelah.modules,[]);
+ assert.deepEqual(setelah.useCases.map(u=>u.code),['UC-001']);
+});
+
+test('menghapus modul tidak meninggalkan rujukan menggantung', () => {
+ const s=newState();
+ s.modules=[{key:'a',code:'M1',name:'Satu'}];
+ s.useCases=[{id:'1',code:'UC-001',name:'a',actor:'',transactions:3,type:'Simple',override:false,module:'a'}];
+ const setelah=deleteModule(s,'a');
+ const kunci=new Set(setelah.modules.map(m=>m.key));
+ assert.ok(setelah.useCases.every(u=>!u.module||kunci.has(u.module)));
+ // normalisasi ulang tidak mengubah apa pun lagi
+ assert.deepEqual(normalize(setelah).useCases.length,setelah.useCases.length);
+});
+
+test('kunci kosong atau tidak dikenal tidak menghapus apa pun', () => {
+ const s=newState();
+ s.modules=[{key:'a',code:'M1',name:'Satu'}];
+ s.useCases=[{id:'1',code:'UC-001',name:'a',actor:'',transactions:3,type:'Simple',override:false,module:'a'}];
+ assert.deepEqual(deleteModule(s,''),s);
+ const asing=deleteModule(s,'tidak-ada');
+ assert.equal(asing.modules.length,1);
+ assert.equal(asing.useCases.length,1);
+});
+
+test('moduleImpact melaporkan jumlah use case yang akan ikut terhapus', () => {
+ const s=newState();
+ s.modules=[{key:'a',code:'M1',name:'Autentikasi'}];
+ s.useCases=[
+  {id:'1',code:'UC-001',name:'a',actor:'',transactions:3,type:'Simple',override:false,module:'a'},
+  {id:'2',code:'UC-002',name:'b',actor:'',transactions:3,type:'Simple',override:false,module:''},
+ ];
+ const d=moduleImpact(s,'a');
+ assert.equal(d.jumlah,1);
+ assert.equal(d.label,'M1 \u00b7 Autentikasi');
+ assert.deepEqual(d.useCases.map(u=>u.code),['UC-001']);
+ assert.equal(moduleImpact(s,'tidak-ada').jumlah,0);
+ assert.equal(moduleImpact(s,'tidak-ada').modul,null);
 });
