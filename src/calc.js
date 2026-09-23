@@ -79,7 +79,7 @@ export function calculate(s){
  }
  const moduleRows=[...rows.values()].map(r=>{
   const share=div(r.uucw,uucw);
-  return {...r,share,pm:pm*share,cost:cost*share,duration:duration*share};
+  return {...r,share,ucp:ucp*share,pm:pm*share,cost:cost*share,duration:duration*share};
  });
  return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays,moduleRows};
 }

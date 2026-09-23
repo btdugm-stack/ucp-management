@@ -466,13 +466,14 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
   {!!s.modules.length&&<section className="panel">
    <div className="panel-head"><h3><span className="judul">Modul Aplikasi</span></h3><span className="total">{s.modules.length} modul</span></div>
    <div className="tablewrap"><table><caption className="sr-only">Daftar modul aplikasi dan modul yang sedang aktif</caption>
-    <thead><tr><th scope="col">Aktif</th><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
+    <thead><tr><th scope="col">Aktif</th><th scope="col">Kode</th><th scope="col">Nama Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col"><span className="sr-only">Aksi</span></th></tr></thead>
     <tbody>{s.modules.map(m=>{const row=c.moduleRows.find(r=>r.key===m.key);return <tr key={m.key} className={m.key===active?'aktif':''}>
      <td><label className="check"><input type="radio" name="modul-aktif" checked={m.key===active} aria-label={`Tampilkan use case ${m.name}`} onChange={()=>setActiveModule(m.key)}/><span>{m.key===active?'aktif':''}</span></label></td>
      <td><input className="code" value={m.code} aria-label="Kode modul" onChange={e=>patchModule(m.key,'code',e.target.value)}/></td>
      <td><input value={m.name} aria-label="Nama modul" onChange={e=>patchModule(m.key,'name',e.target.value)}/></td>
      <td>{row?.count??0}</td>
      <td><b>{row?.uucw??0}</b></td>
+     <td><b>{(row?.ucp??0).toFixed(2)}</b><small className="flag">{((row?.share??0)*100).toFixed(1)}%</small></td>
      <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key,m.name)}><Trash2 size={15}/></button></td>
     </tr>})}
     {(lepas||active==='')&&<tr className={active===''?'aktif':''}>
@@ -481,9 +482,10 @@ function UseCases({s,setS,c,activeModule,setActiveModule,go}){
      <td><i>Tanpa modul</i></td>
      <td>{lepas?.count??0}</td>
      <td><b>{lepas?.uucw??0}</b></td>
+     <td><b>{(lepas?.ucp??0).toFixed(2)}</b><small className="flag">{((lepas?.share??0)*100).toFixed(1)}%</small></td>
      <td/>
     </tr>}</tbody></table></div>
-   <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul.</p>
+   <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul. Kolom <b>UCP</b> adalah bagian dari {c.ucp.toFixed(2)} UCP proyek yang jatuh ke tiap modul menurut porsi UUCW-nya; UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan sehingga tidak dapat dipecah per modul.</p>
   </section>}
 
   {galat&&<div className="db-down">
@@ -607,7 +609,7 @@ function ModulePreview({s,c,go}){
 // terhadap UUCW karena hanya UUCW yang melekat pada masing-masing use case.
 function ModuleRecap({s,c,go}){
  const rows=c.moduleRows;
- const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,pm:a.pm+r.pm,cost:a.cost+r.cost}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,pm:0,cost:0});
+ const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp,pm:a.pm+r.pm,cost:a.cost+r.cost}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,ucp:0,pm:0,cost:0});
  if(!s.modules.length&&!s.useCases.length)return <section className="panel"><div className="empty"><Boxes size={26}/><b>Belum ada use case</b><small>Tambahkan use case lebih dulu, lalu kelompokkan ke modul lewat tombol Add Modul.</small><div className="crash-actions"><button className="primary" onClick={()=>go('usecases')}>Buka Daftar Use Case<ChevronRight size={15}/></button></div></div></section>;
  return <>
   <div className="cards">
@@ -622,16 +624,17 @@ function ModuleRecap({s,c,go}){
     ?<p className="hint">Belum ada modul. Seluruh {total.count} use case dihitung sebagai satu kesatuan. Tambahkan modul lewat tombol <b>Add Modul</b> pada Daftar Use Case bila estimasi perlu dipecah.</p>
     :null}
    <table><caption className="sr-only">Rekap use case, UUCW, effort, dan biaya per modul</caption>
-    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">Porsi</th><th scope="col">Effort</th><th scope="col">Biaya</th></tr></thead>
+    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">Porsi</th><th scope="col">Effort</th><th scope="col">Biaya</th></tr></thead>
     <tbody>{rows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
      <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
      <td>{r.count}</td><td>{r.Simple}</td><td>{r.Average}</td><td>{r.Complex}</td>
      <td><b>{r.uucw}</b></td>
+     <td>{r.ucp.toFixed(2)}</td>
      <td><div className="share"><i style={{width:`${Math.min(100,r.share*100)}%`}}/></div><small>{(r.share*100).toFixed(1)}%</small></td>
      <td>{r.pm.toFixed(2)} PM</td>
      <td>{money(r.cost)}</td>
     </tr>)}</tbody>
-    <tfoot><tr><td>Total</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>100%</td><td>{total.pm.toFixed(2)} PM</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
+    <tfoot><tr><td>Total</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>{total.ucp.toFixed(2)}</td><td>100%</td><td>{total.pm.toFixed(2)} PM</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
    </table>
    <p className="hint">Porsi dihitung dari UUCW, satu-satunya besaran UCP yang melekat pada masing-masing use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan sehingga effort dan biaya per modul bersifat proporsional, bukan hasil perhitungan UCP yang berdiri sendiri per modul.</p>
   </section>

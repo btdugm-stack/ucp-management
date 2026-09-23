@@ -312,3 +312,35 @@ test('validate menandai actor yang tidak ada pada Actor Analysis', () => {
  s.useCases[1].actor='';
  assert.ok(!validate(s,calculate(s)).some(i=>/tidak ada pada Actor Analysis/i.test(i.message)));
 });
+
+test('UCP per modul dialokasikan menurut porsi UUCW', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ // porsi: M1 10/35, M2 15/35, tanpa modul 10/35
+ near(c.moduleRows[0].ucp,c.ucp*10/35);
+ near(c.moduleRows[1].ucp,c.ucp*15/35);
+ near(c.moduleRows[2].ucp,c.ucp*10/35);
+ // jumlahnya kembali tepat ke UCP proyek
+ near(c.moduleRows.reduce((a,r)=>a+r.ucp,0),c.ucp);
+});
+
+test('satu modul yang memuat seluruh use case memperoleh UCP penuh', () => {
+ const s=denganModul();
+ s.modules=[{key:'m1',code:'M1',name:'Tunggal'}];
+ s.useCases=s.useCases.map(u=>({...u,module:'m1'}));
+ const c=calculate(s);
+ assert.equal(c.moduleRows.length,1);
+ near(c.moduleRows[0].share,1);
+ near(c.moduleRows[0].ucp,c.ucp,1e-9);
+});
+
+test('UCP modul tetap 0 dan finite saat tidak ada use case sama sekali', () => {
+ const s=denganModul();
+ s.useCases=[];
+ const c=calculate(s);
+ for(const r of c.moduleRows){
+  assert.ok(Number.isFinite(r.ucp),'ucp harus finite');
+  assert.equal(r.ucp,0);
+  assert.equal(r.share,0);
+ }
+});

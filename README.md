@@ -199,8 +199,9 @@ peringatan.
 Karena penempatan mengikuti modul aktif saat use case dibuat, use case yang
 terlanjur masuk modul yang keliru belum dapat dipindahkan dari antarmuka.
 
-Rekap menampilkan jumlah use case, sebaran Simple/Average/Complex, UUCW, dan
-porsi masing-masing modul. Effort serta biaya per modul
+Rekap menampilkan jumlah use case, sebaran Simple/Average/Complex, UUCW, UCP,
+dan porsi masing-masing modul. Kolom UCP juga tampil pada panel Modul Aplikasi
+di Daftar Use Case. Effort serta biaya per modul
 dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang
 melekat pada masing-masing use case; UAW, TCF, dan ECF berlaku untuk proyek
 secara keseluruhan. Use case yang belum masuk modul tetap dihitung dan muncul

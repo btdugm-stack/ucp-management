@@ -61,10 +61,10 @@ export function specExcel(s,c,issues){
   ['TOTAL UUCW','','','','','','',c.uucw],
  ]});
 
- sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UUCW','Porsi (%)','Effort (PM)','Biaya (Rp)'],rows:[
-  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,r.uucw,n2(r.share*100),n2(r.pm),Math.round(r.cost)]),
+ sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UUCW','UCP','Porsi (%)','Effort (PM)','Biaya (Rp)'],rows:[
+  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,r.uucw,n2(r.ucp),n2(r.share*100),n2(r.pm),Math.round(r.cost)]),
   [],
-  ['TOTAL','',s.useCases.length,'','','',c.uucw,100,n2(c.pm),Math.round(c.cost)],
+  ['TOTAL','',s.useCases.length,'','','',c.uucw,n2(c.ucp),100,n2(c.pm),Math.round(c.cost)],
  ]});
 
  const faktor=(daftar,label,jumlah,hasil,rumus)=>({name:label,columns:['Kode','Nama','Deskripsi','Assigned Value','Bobot','Hasil'],rows:[
@@ -164,8 +164,8 @@ export function specWord(s,c,issues){
 
  if(s.modules.length){
   blocks.push({type:'heading',text:'Rekap per Modul Aplikasi'});
-  blocks.push({type:'table',columns:['Modul','Use Case','UUCW','Porsi','Effort','Biaya'],rows:
-   c.moduleRows.map(r=>[[r.code,r.name].filter(Boolean).join(' · '),String(r.count),angka(r.uucw),`${angka(n2(r.share*100))}%`,`${angka(n2(r.pm))} PM`,rupiah(r.cost)])});
+  blocks.push({type:'table',columns:['Modul','Use Case','UUCW','UCP','Porsi','Effort','Biaya'],rows:
+   c.moduleRows.map(r=>[[r.code,r.name].filter(Boolean).join(' · '),String(r.count),angka(r.uucw),angka(n2(r.ucp)),`${angka(n2(r.share*100))}%`,`${angka(n2(r.pm))} PM`,rupiah(r.cost)])});
   blocks.push({type:'paragraph',text:'Porsi effort dan biaya per modul dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang melekat pada masing-masing use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan.'});
  }
 
