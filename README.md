@@ -223,8 +223,9 @@ permintaan; UCP standar memakai 0–5, sehingga nilai negatif membalik arah
 kontribusi sebuah faktor. Pada E7 dan E8 yang berbobot −1, assigned value
 negatif menghasilkan kontribusi positif yang menaikkan EF dan menurunkan ECF.
 
-**Kalkulasi custom** pada Dashboard menyediakan skenario alternatif di samping
-tabel Scenario Sensitivity. PM dan M diambil dari perhitungan default — M
+**Kalkulasi custom** berada pada menu Calculation, submenu *Kalkulasi Custom*,
+berdampingan dengan *Kalkulasi UCP* yang memuat rantai perhitungan bakunya.
+PM dan M diambil dari perhitungan default — M
 adalah durasi terhitung `3 × PM^(1/3)` — sedangkan Working Days dan Hari Durasi
 Project diisi manual:
 
