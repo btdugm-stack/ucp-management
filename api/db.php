@@ -42,11 +42,24 @@ function ucp_db(): PDO
 
 function ucp_migrate(PDO $pdo): void
 {
-    $exists = $pdo->query("SHOW TABLES LIKE 'projects'")->fetch();
-    if ($exists) {
-        ucp_add_missing_columns($pdo);
-        return;
-    }
+    // schema.sql aman dijalankan berulang kali: seluruh pernyataannya memakai
+    // IF NOT EXISTS. Menjalankannya setiap kali berarti tabel yang lahir pada
+    // versi berikutnya ikut terbentuk pada pemasangan lama tanpa langkah
+    // tambahan, sedangkan tabel yang sudah berisi data tidak disentuh.
+    ucp_run_schema($pdo);
+    ucp_add_missing_columns($pdo);
+}
+
+/**
+ * Menjalankan pernyataan CREATE TABLE dari schema.sql.
+ *
+ * CREATE DATABASE dan USE dilewati karena nama databasenya ditentukan oleh
+ * konfigurasi, bukan oleh berkas skema; koneksi ini sudah menunjuk database
+ * yang benar. Keduanya tetap ada di schema.sql agar berkas itu dapat
+ * dijalankan langsung lewat "mysql < api/schema.sql" pada server baru.
+ */
+function ucp_run_schema(PDO $pdo): void
+{
     $sql = file_get_contents(__DIR__ . '/schema.sql');
     if ($sql === false) {
         throw new RuntimeException('Berkas schema.sql tidak dapat dibaca.');
@@ -54,14 +67,17 @@ function ucp_migrate(PDO $pdo): void
     // Buang komentar baris agar pemisahan pernyataan tidak terganggu.
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
     foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
+        if (preg_match('/^(CREATE\s+DATABASE|USE)\b/i', $statement) === 1) {
+            continue;
+        }
         $pdo->exec($statement);
     }
 }
 
 /**
  * Menambahkan kolom yang belum ada pada database yang terlanjur dibuat oleh
- * versi sebelumnya. schema.sql hanya dijalankan saat tabel belum ada, jadi
- * tanpa langkah ini pemasangan lama akan kehilangan kolom baru.
+ * versi sebelumnya. CREATE TABLE IF NOT EXISTS tidak menyentuh tabel yang
+ * sudah ada, jadi kolom baru harus ditambahkan secara terpisah.
  */
 function ucp_add_missing_columns(PDO $pdo): void
 {
@@ -83,26 +99,6 @@ function ucp_add_missing_columns(PDO $pdo): void
             if (!isset($present[$name])) {
                 $pdo->exec(sprintf('ALTER TABLE %s ADD COLUMN `%s` %s', $table, $name, $definition));
             }
-        }
-    }
-    ucp_add_missing_tables($pdo);
-}
-
-/**
- * Tabel yang lahir setelah pemasangan pertama. Pernyataan di schema.sql
- * seluruhnya memakai IF NOT EXISTS, jadi menjalankan ulang bagian yang
- * dibutuhkan aman dan tidak menyentuh tabel yang sudah berisi data.
- */
-function ucp_add_missing_tables(PDO $pdo): void
-{
-    $sql = file_get_contents(__DIR__ . '/schema.sql');
-    if ($sql === false) {
-        return;
-    }
-    $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-    foreach (array_filter(array_map('trim', explode(';', $sql))) as $statement) {
-        if (stripos($statement, 'CREATE TABLE IF NOT EXISTS project_modules') === 0) {
-            $pdo->exec($statement);
         }
     }
 }

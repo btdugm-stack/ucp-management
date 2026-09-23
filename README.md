@@ -37,6 +37,25 @@ Seluruhnya sudah tersedia pada pemasangan Laragon standar.
 Database `ucp_management` beserta seluruh tabelnya dibuat sendiri saat API
 pertama kali dipanggil — tidak ada langkah migrasi manual.
 
+Untuk menyiapkan database lebih dulu, misalnya pada server yang terpisah dari
+aplikasi, jalankan skemanya langsung:
+
+```
+mysql -u root -p < api/schema.sql
+```
+
+Berkas itu membuat databasenya sendiri, jadi tidak perlu memilih database lebih
+dulu. Seluruh pernyataannya memakai `IF NOT EXISTS` sehingga aman dijalankan
+berulang kali pada database yang sudah berisi data. Bila nama database selain
+`ucp_management` dikehendaki, ubah baris `CREATE DATABASE` dan `USE` pada berkas
+itu lalu beri tahu aplikasi lewat `UCP_DB_NAME`.
+
+Aplikasi menjalankan berkas yang sama saat bootstrap, dengan melewati baris
+`CREATE DATABASE` dan `USE` karena nama databasenya sudah ditentukan
+konfigurasi. Karena seluruh `CREATE TABLE` memakai `IF NOT EXISTS`, tabel yang
+lahir pada versi berikutnya ikut terbentuk pada pemasangan lama tanpa langkah
+tambahan.
+
 ### Pengembangan
 
 Jalankan dua proses berdampingan, masing-masing di terminal sendiri:
