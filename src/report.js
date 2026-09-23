@@ -61,10 +61,14 @@ export function specExcel(s,c,issues){
   ['TOTAL UUCW','','','','','','',c.uucw],
  ]});
 
- sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UUCW','UCP','Porsi (%)','Effort (PM)','Mandays','Man','Biaya (Rp)'],rows:[
-  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,r.uucw,n2(r.ucp),n2(r.share*100),n2(r.pm),n2(r.mandays),n2(r.man),Math.round(r.cost)]),
+ const jml=k=>c.moduleRows.reduce((a,r)=>a+r[k],0);
+ sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UAW','UUCW','UCP','Effort (PM)','Durasi (bulan)','Mandays','Man','Biaya (Rp)'],rows:[
+  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,n2(r.uaw),r.uucw,n2(r.ucp),n2(r.pm),n2(r.duration),n2(r.mandays),n2(r.man),Math.round(r.cost)]),
   [],
-  ['TOTAL','',s.useCases.length,'','','',c.uucw,n2(c.ucp),100,n2(c.pm),n2(c.mandays),n2(c.man),Math.round(c.cost)],
+  ['JUMLAH MODUL','',s.useCases.length,'','','','',c.uucw,n2(jml('ucp')),n2(jml('pm')),'',n2(jml('mandays')),n2(jml('man')),Math.round(c.cost)],
+  ['PROYEK','',s.useCases.length,'','','',c.uaw,c.uucw,n2(c.ucp),n2(c.pm),n2(c.duration),n2(c.mandays),n2(c.man),Math.round(c.cost)],
+  [],
+  ['Catatan','Tiap modul dihitung berdiri sendiri memakai TCF dan ECF proyek. Jumlah modul tidak harus sama dengan angka proyek karena durasi memakai akar pangkat tiga. Biaya tetap dibagi menurut porsi UUCW.'],
  ]});
 
  const faktor=(daftar,label,jumlah,hasil,rumus)=>({name:label,columns:['Kode','Nama','Deskripsi','Assigned Value','Bobot','Hasil'],rows:[
@@ -164,9 +168,9 @@ export function specWord(s,c,issues){
 
  if(s.modules.length){
   blocks.push({type:'heading',text:'Rekap per Modul Aplikasi'});
-  blocks.push({type:'table',columns:['Modul','Use Case','UUCW','UCP','Porsi','Effort','Biaya'],rows:
-   c.moduleRows.map(r=>[[r.code,r.name].filter(Boolean).join(' · '),String(r.count),angka(r.uucw),angka(n2(r.ucp)),`${angka(n2(r.share*100))}%`,`${angka(n2(r.pm))} PM`,rupiah(r.cost)])});
-  blocks.push({type:'paragraph',text:'Porsi effort dan biaya per modul dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang melekat pada masing-masing use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan.'});
+  blocks.push({type:'table',columns:['Modul','Use Case','UUCW','UCP','Effort','Durasi','Biaya'],rows:
+   c.moduleRows.map(r=>[[r.code,r.name].filter(Boolean).join(' · '),String(r.count),angka(r.uucw),angka(n2(r.ucp)),`${angka(n2(r.pm))} PM`,`${angka(n2(r.duration))} bulan`,rupiah(r.cost)])});
+  blocks.push({type:'paragraph',text:'Tiap modul dihitung sebagai estimasi yang berdiri sendiri: UAW dari actor yang dirujuk use case di dalamnya dan UUCW dari use case itu, memakai TCF serta ECF proyek. Jumlah seluruh modul karena itu tidak harus sama dengan angka proyek, sebab durasi memakai akar pangkat tiga sehingga memecah effort menurunkan durasi masing-masing bagian. Biaya adalah pengecualian: tetap dibagi menurut porsi UUCW karena peran pada staffing ditetapkan untuk proyek.'});
  }
 
  blocks.push({type:'heading',text:'Rencana Sumber Daya'});

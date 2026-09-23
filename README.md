@@ -199,13 +199,25 @@ peringatan.
 Karena penempatan mengikuti modul aktif saat use case dibuat, use case yang
 terlanjur masuk modul yang keliru belum dapat dipindahkan dari antarmuka.
 
-Rekap menampilkan jumlah use case, sebaran Simple/Average/Complex, UUCW, UCP,
-dan porsi masing-masing modul. Kolom UCP juga tampil pada panel Modul Aplikasi
-di Daftar Use Case. Effort serta biaya per modul
-dihitung proporsional terhadap UUCW, karena UUCW satu-satunya besaran UCP yang
-melekat pada masing-masing use case; UAW, TCF, dan ECF berlaku untuk proyek
-secara keseluruhan. Use case yang belum masuk modul tetap dihitung dan muncul
-pada baris *Tanpa modul*.
+**Tiap modul dihitung sebagai estimasi yang berdiri sendiri**, bukan sebagai
+potongan angka proyek: UAW dari actor yang dirujuk use case di dalamnya, UUCW
+dari use case itu, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek
+karena menggambarkan teknologi dan tim, bukan sebuah modul. Setiap modul karena
+itu memperoleh UCP, effort, dan durasi M-nya sendiri.
+
+Konsekuensinya, jumlah seluruh modul tidak harus sama dengan angka proyek.
+Durasi memakai akar pangkat tiga, sehingga memecah effort menjadi beberapa
+bagian menurunkan durasi masing-masing bagian; jumlah mandays seluruh modul
+akan lebih kecil daripada mandays proyek. Actor yang tidak dirujuk satu pun use
+case juga tidak masuk UAW modul mana pun.
+
+**Biaya adalah pengecualian**: tetap dibagi menurut porsi UUCW, karena peran
+pada staffing ditetapkan untuk proyek secara keseluruhan dan bukan milik satu
+modul.
+
+Angka itu tampil pada panel Modul Aplikasi, submenu *Rekap per Modul*, dan
+pandangan *Per Modul* pada Kalkulasi Custom. Use case yang belum masuk modul
+tetap dihitung dan muncul pada baris *Tanpa modul*.
 
 **Menghapus modul ikut menghapus seluruh use case di dalamnya.** Konfirmasinya
 menyebutkan berapa use case yang hilang dan berapa UUCW proyek berkurang, karena

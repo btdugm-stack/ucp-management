@@ -387,7 +387,7 @@ function CustomScenario({s,c,update,go}){
  // dihapus saat pandangan itu terbuka, tampilan dikembalikan ke seluruh proyek
  // alih-alih menyisakan tabel kosong.
  const tampilan=adaModul?mode:'proyek';
- const total=c.moduleRows.reduce((a,r)=>({pm:a.pm+r.pm,mandays:a.mandays+r.mandays,man:a.man+r.man,uucw:a.uucw+r.uucw}),{pm:0,mandays:0,man:0,uucw:0});
+ const total=c.moduleRows.reduce((a,r)=>({pm:a.pm+r.pm,mandays:a.mandays+r.mandays,man:a.man+r.man,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp}),{pm:0,mandays:0,man:0,uucw:0,ucp:0});
 
  return <section className="panel">
   <div className="panel-head"><h3><span className="judul">Kalkulasi Custom</span><span className="pill">MANDAYS &amp; MAN</span></h3>{go&&<button onClick={()=>go('calculation')}>Parameter Effort <ChevronRight size={15}/></button>}</div>
@@ -414,21 +414,22 @@ function CustomScenario({s,c,update,go}){
    <p className="hint">PM dan M diambil dari perhitungan default: effort {fmt(c.pm)} person-month dan durasi {fmt(c.duration)} bulan. Dengan {fmt(c.customWorkingDays)} hari kerja per bulan, durasi itu setara {fmt(c.durationDays)} hari kerja.</p>
   </>:<>
    <div className="tablewrap lebar"><table><caption className="sr-only">Mandays dan Man per modul aplikasi</caption>
-    <thead><tr><th scope="col">Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col">Porsi</th><th scope="col">PM</th><th scope="col">Mandays</th><th scope="col">Man</th></tr></thead>
+    <thead><tr><th scope="col">Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">PM</th><th scope="col">M (bulan)</th><th scope="col">Mandays</th><th scope="col">Man</th></tr></thead>
     <tbody>{c.moduleRows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
      <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
      <td>{r.count}</td>
      <td><b>{r.uucw}</b></td>
-     <td><div className="share"><i style={{width:`${Math.min(100,r.share*100)}%`}}/></div><small>{(r.share*100).toFixed(1)}%</small></td>
+     <td>{fmt(r.ucp)}</td>
      <td>{fmt(r.pm)}</td>
+     <td>{fmt(r.duration)}</td>
      <td><b>{fmt(r.mandays)}</b></td>
      <td><b>{fmt(r.man)}</b></td>
     </tr>)}</tbody>
-    <tfoot><tr><td>Total</td><td>{s.useCases.length}</td><td><b>{total.uucw}</b></td><td>100%</td><td>{fmt(total.pm)}</td><td><b>{fmt(total.mandays)}</b></td><td><b>{fmt(total.man)}</b></td></tr></tfoot>
+    <tfoot><tr><td>Jumlah</td><td>{s.useCases.length}</td><td><b>{total.uucw}</b></td><td>{fmt(total.ucp)}</td><td>{fmt(total.pm)}</td><td>—</td><td><b>{fmt(total.mandays)}</b></td><td><b>{fmt(total.man)}</b></td></tr></tfoot>
    </table></div>
-   <div className="formula"><b>Mandays per modul</b><code>PM modul × M × Working Days, dengan M = {fmt(c.duration)} bulan dan Working Days = {fmt(c.customWorkingDays)}</code></div>
-   <div className="formula"><b>Man per modul</b><code>Mandays modul ÷ {fmt(c.customProjectDays)} hari durasi project</code></div>
-   <p className="hint">Hanya effort yang dibagi menurut porsi UUCW tiap modul. Durasi proyek tidak ikut dibagi karena modul berjalan di dalam rentang waktu yang sama, sehingga jumlah Mandays seluruh modul kembali tepat ke {fmt(c.mandays)} mandays proyek. Porsi UUCW dikelola pada menu <b>Use Cases</b>.</p>
+   <div className="formula"><b>Per modul</b><code>UCP modul = (UAW modul + UUCW modul) × {fmt(c.tcf)} × {fmt(c.ecf)} , lalu PM modul dan M modul = 3 × PM^(1/3)</code></div>
+   <div className="formula"><b>Mandays dan Man</b><code>PM modul × M modul × {fmt(c.customWorkingDays)} , lalu ÷ {fmt(c.customProjectDays)} hari durasi project</code></div>
+   <p className="hint">Tiap modul dihitung sendiri, bukan sebagai potongan angka proyek: UAW dari actor yang dirujuk use case di dalamnya, UUCW dari use case itu, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek karena menggambarkan teknologi dan tim. Karena itu setiap modul memperoleh durasi M-nya sendiri, dan baris <b>Jumlah</b> ({fmt(total.mandays)} mandays) tidak harus sama dengan {fmt(c.mandays)} mandays proyek — durasi memakai akar pangkat tiga, sehingga memecah effort menurunkan durasi masing-masing bagian. Modul dikelola pada menu <b>Use Cases</b>.</p>
   </>}
  </section>;
 }
@@ -521,7 +522,7 @@ Seluruh use case itu ikut terhapus dan tidak dapat dikembalikan. UUCW proyek ber
      <td><input value={m.name} aria-label="Nama modul" onChange={e=>patchModule(m.key,'name',e.target.value)}/></td>
      <td>{row?.count??0}</td>
      <td><b>{row?.uucw??0}</b></td>
-     <td><b>{(row?.ucp??0).toFixed(2)}</b><small className="flag">{((row?.share??0)*100).toFixed(1)}%</small></td>
+     <td><b>{(row?.ucp??0).toFixed(2)}</b></td>
      <td><button className="icon" aria-label={`Hapus modul ${m.name}`} onClick={()=>delModule(m.key)}><Trash2 size={15}/></button></td>
     </tr>})}
     {(lepas||active==='')&&<tr className={active===''?'aktif':''}>
@@ -530,10 +531,10 @@ Seluruh use case itu ikut terhapus dan tidak dapat dikembalikan. UUCW proyek ber
      <td><i>Tanpa modul</i></td>
      <td>{lepas?.count??0}</td>
      <td><b>{lepas?.uucw??0}</b></td>
-     <td><b>{(lepas?.ucp??0).toFixed(2)}</b><small className="flag">{((lepas?.share??0)*100).toFixed(1)}%</small></td>
+     <td><b>{(lepas?.ucp??0).toFixed(2)}</b></td>
      <td/>
     </tr>}</tbody></table></div>
-   <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul. Kolom <b>UCP</b> adalah bagian dari {c.ucp.toFixed(2)} UCP proyek yang jatuh ke tiap modul menurut porsi UUCW-nya; UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan sehingga tidak dapat dipecah per modul.</p>
+   <p className="hint">Daftar di bawah menampilkan use case milik modul yang bertanda <b>aktif</b>, dan use case yang ditambahkan akan masuk ke modul tersebut. Pilih baris lain untuk berpindah modul. Kolom <b>UCP</b> dihitung berdiri sendiri untuk tiap modul dari UUCW dan actor yang dirujuknya, memakai TCF dan ECF proyek. Jumlahnya karena itu tidak harus sama dengan {c.ucp.toFixed(2)} UCP proyek.</p>
   </section>}
 
   {galat&&<div className="db-down">
@@ -653,8 +654,9 @@ function ModulePreview({s,c,go}){
  </>;
 }
 
-// Rekap per modul. Porsi effort, durasi, dan biaya dihitung proporsional
-// terhadap UUCW karena hanya UUCW yang melekat pada masing-masing use case.
+// Rekap per modul. Tiap modul dihitung sebagai estimasi yang berdiri sendiri;
+// hanya biaya yang tetap dibagi menurut porsi UUCW karena peran pada staffing
+// ditetapkan untuk proyek, bukan per modul.
 function ModuleRecap({s,c,go}){
  const rows=c.moduleRows;
  const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp,pm:a.pm+r.pm,cost:a.cost+r.cost}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,ucp:0,pm:0,cost:0});
@@ -672,19 +674,19 @@ function ModuleRecap({s,c,go}){
     ?<p className="hint">Belum ada modul. Seluruh {total.count} use case dihitung sebagai satu kesatuan. Tambahkan modul lewat tombol <b>Add Modul</b> pada Daftar Use Case bila estimasi perlu dipecah.</p>
     :null}
    <table><caption className="sr-only">Rekap use case, UUCW, effort, dan biaya per modul</caption>
-    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">Porsi</th><th scope="col">Effort</th><th scope="col">Biaya</th></tr></thead>
+    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">Effort</th><th scope="col">Durasi</th><th scope="col">Biaya</th></tr></thead>
     <tbody>{rows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
      <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
      <td>{r.count}</td><td>{r.Simple}</td><td>{r.Average}</td><td>{r.Complex}</td>
      <td><b>{r.uucw}</b></td>
      <td>{r.ucp.toFixed(2)}</td>
-     <td><div className="share"><i style={{width:`${Math.min(100,r.share*100)}%`}}/></div><small>{(r.share*100).toFixed(1)}%</small></td>
      <td>{r.pm.toFixed(2)} PM</td>
+     <td>{r.duration.toFixed(2)} mo</td>
      <td>{money(r.cost)}</td>
     </tr>)}</tbody>
-    <tfoot><tr><td>Total</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>{total.ucp.toFixed(2)}</td><td>100%</td><td>{total.pm.toFixed(2)} PM</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
+    <tfoot><tr><td>Jumlah</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>{total.ucp.toFixed(2)}</td><td>{total.pm.toFixed(2)} PM</td><td>—</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
    </table>
-   <p className="hint">Porsi dihitung dari UUCW, satu-satunya besaran UCP yang melekat pada masing-masing use case. UAW, TCF, dan ECF berlaku untuk proyek secara keseluruhan sehingga effort dan biaya per modul bersifat proporsional, bukan hasil perhitungan UCP yang berdiri sendiri per modul.</p>
+   <p className="hint">Tiap modul dihitung sebagai estimasi yang berdiri sendiri: UAW dari actor yang dirujuk use case di dalamnya, UUCW dari use case itu sendiri, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek karena menggambarkan teknologi dan tim. Baris <b>Jumlah</b> karena itu tidak harus sama dengan angka proyek — durasi memakai akar pangkat tiga, sehingga memecah effort menurunkan durasi masing-masing bagian. <b>Biaya</b> adalah pengecualian: tetap dibagi menurut porsi UUCW karena peran pada staffing ditetapkan untuk proyek, bukan per modul.</p>
   </section>
  </>;
 }

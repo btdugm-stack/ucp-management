@@ -60,11 +60,14 @@ export function calculate(s){
  // tidak dapat dibagi per modul, jadi angka per modul bersifat proporsional.
  const moduleList=Array.isArray(s.modules)?s.modules:[];
  const known=new Map(moduleList.map(m=>[m.key,m]));
+ // Actor dirujuk use case lewat namanya, jadi daftarnya dipetakan sekali agar
+ // UAW tiap modul dapat dihitung dari actor yang benar-benar dipakai di sana.
+ const actorByName=new Map(s.actors.map(a=>[(a.name||'').trim().toLowerCase(),a]).filter(([n])=>n));
  const rows=new Map();
  const bucket=key=>{
   if(!rows.has(key)){
    const m=known.get(key);
-   rows.set(key,{key,code:m?.code??'',name:m?(m.name||'Tanpa nama'):'Tanpa modul',assigned:!!m,count:0,Simple:0,Average:0,Complex:0,transactions:0,uucw:0});
+   rows.set(key,{key,code:m?.code??'',name:m?(m.name||'Tanpa nama'):'Tanpa modul',assigned:!!m,count:0,Simple:0,Average:0,Complex:0,transactions:0,uucw:0,actorNames:new Set()});
   }
   return rows.get(key);
  };
@@ -76,14 +79,32 @@ export function calculate(s){
   r[type]=(r[type]||0)+1;
   r.transactions+=clamp(u.transactions,0,999);
   r.uucw+=ucWeights[type]||0;
+  const nama=(u.actor||'').trim().toLowerCase();
+  if(nama&&actorByName.has(nama))r.actorNames.add(nama);
  }
+ // Tiap modul dihitung sebagai estimasi yang berdiri sendiri, bukan potongan
+ // dari angka proyek: UAW dari actor yang dirujuknya, UUCW dari use case di
+ // dalamnya, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek karena
+ // menggambarkan teknologi dan tim, bukan sebuah modul.
+ //
+ // Akibatnya jumlah seluruh modul tidak sama dengan angka proyek. Itu memang
+ // sifat modelnya: durasi memakai akar pangkat tiga, sehingga memecah effort
+ // menjadi beberapa bagian menurunkan durasi masing-masing bagian.
+ //
+ // Biaya tetap dibagi menurut porsi UUCW, karena peran pada staffing
+ // ditetapkan untuk proyek secara keseluruhan dan bukan milik satu modul.
  const moduleRows=[...rows.values()].map(r=>{
   const share=div(r.uucw,uucw);
-  // Mandays dan Man ikut dipecah menurut porsi yang sama. Durasi proyek tidak
-  // ikut dibagi: modul berjalan di dalam rentang waktu proyek yang sama, jadi
-  // hanya effort-nya yang terbagi. Dengan begitu jumlah mandays seluruh modul
-  // kembali tepat ke mandays proyek.
-  return {...r,share,ucp:ucp*share,pm:pm*share,cost:cost*share,duration:duration*share,mandays:mandays*share,man:man*share};
+  const modUaw=[...r.actorNames].reduce((a,n)=>{const x=actorByName.get(n);return a+clamp(x?.qty,0,9999)*(actorWeights[x?.type]||0)},0);
+  const modUu=modUaw+r.uucw;
+  const modUcp=modUu*tcf*ecf;
+  const modPh=modUcp*phm;
+  const modPm=div(modPh,capacity);
+  const modDuration=3*Math.cbrt(modPm);
+  const modMandays=modPm*modDuration*customWorkingDays;
+  const {actorNames,...sisa}=r;
+  return {...sisa,share,uaw:modUaw,uu:modUu,ucp:modUcp,ph:modPh,pm:modPm,duration:modDuration,
+   mandays:modMandays,man:div(modMandays,customProjectDays),cost:cost*share};
  });
  return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays,moduleRows};
 }

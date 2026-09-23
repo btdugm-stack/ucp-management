@@ -244,16 +244,6 @@ test('rekap modul mengelompokkan use case beserta bobotnya', () => {
  assert.equal(lepas.uucw,10);
 });
 
-test('porsi modul berjumlah tepat satu dan effort terbagi sesuai porsi', () => {
- const c=calculate(denganModul());
- near(c.moduleRows.reduce((a,r)=>a+r.share,0),1);
- near(c.moduleRows.reduce((a,r)=>a+r.pm,0),c.pm);
- near(c.moduleRows.reduce((a,r)=>a+r.cost,0),c.cost);
- const m2=c.moduleRows[1];
- near(m2.share,15/35);
- near(m2.pm,c.pm*15/35);
-});
-
 test('modul tanpa use case tetap muncul dengan nilai nol', () => {
  const s=denganModul();
  s.useCases=s.useCases.filter(u=>u.module!=='m2');
@@ -313,27 +303,6 @@ test('validate menandai actor yang tidak ada pada Actor Analysis', () => {
  assert.ok(!validate(s,calculate(s)).some(i=>/tidak ada pada Actor Analysis/i.test(i.message)));
 });
 
-test('UCP per modul dialokasikan menurut porsi UUCW', () => {
- const s=denganModul();
- const c=calculate(s);
- // porsi: M1 10/35, M2 15/35, tanpa modul 10/35
- near(c.moduleRows[0].ucp,c.ucp*10/35);
- near(c.moduleRows[1].ucp,c.ucp*15/35);
- near(c.moduleRows[2].ucp,c.ucp*10/35);
- // jumlahnya kembali tepat ke UCP proyek
- near(c.moduleRows.reduce((a,r)=>a+r.ucp,0),c.ucp);
-});
-
-test('satu modul yang memuat seluruh use case memperoleh UCP penuh', () => {
- const s=denganModul();
- s.modules=[{key:'m1',code:'M1',name:'Tunggal'}];
- s.useCases=s.useCases.map(u=>({...u,module:'m1'}));
- const c=calculate(s);
- assert.equal(c.moduleRows.length,1);
- near(c.moduleRows[0].share,1);
- near(c.moduleRows[0].ucp,c.ucp,1e-9);
-});
-
 test('UCP modul tetap 0 dan finite saat tidak ada use case sama sekali', () => {
  const s=denganModul();
  s.useCases=[];
@@ -345,29 +314,6 @@ test('UCP modul tetap 0 dan finite saat tidak ada use case sama sekali', () => {
  }
 });
 
-test('Mandays dan Man per modul dibagi menurut porsi UUCW', () => {
- const s=denganModul();
- s.custom={workingDays:22,projectDays:120};
- const c=calculate(s);
- near(c.moduleRows[0].mandays,c.mandays*10/35);
- near(c.moduleRows[1].mandays,c.mandays*15/35);
- near(c.moduleRows[0].man,c.man*10/35);
- // jumlah seluruh modul kembali tepat ke angka proyek
- near(c.moduleRows.reduce((a,r)=>a+r.mandays,0),c.mandays);
- near(c.moduleRows.reduce((a,r)=>a+r.man,0),c.man);
-});
-
-test('durasi proyek tidak ikut dibagi saat memecah Mandays per modul', () => {
- const s=denganModul();
- s.custom={workingDays:20,projectDays:100};
- const c=calculate(s);
- // Mandays modul = PM modul x durasi PROYEK x working days.
- // Memakai durasi yang ikut dibagi akan menghasilkan share kuadrat.
- for(const r of c.moduleRows)near(r.mandays,r.pm*c.duration*20);
- const kuadrat=c.moduleRows[1].pm*c.moduleRows[1].duration*20;
- assert.notEqual(Math.round(kuadrat*100),Math.round(c.moduleRows[1].mandays*100));
-});
-
 test('Mandays per modul tetap finite saat pembagi custom nol', () => {
  const s=denganModul();
  s.custom={workingDays:22,projectDays:0};
@@ -377,4 +323,96 @@ test('Mandays per modul tetap finite saat pembagi custom nol', () => {
   assert.ok(Number.isFinite(r.man));
   assert.equal(r.man,0);
  }
+});
+
+test('tiap modul dihitung berdiri sendiri, bukan sebagai potongan angka proyek', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ const [m1,m2]=c.moduleRows;
+ // UCP modul = (UAW modul + UUCW modul) x TCF x ECF, memakai faktor proyek
+ near(m1.ucp,(m1.uaw+m1.uucw)*c.tcf*c.ecf);
+ near(m2.ucp,(m2.uaw+m2.uucw)*c.tcf*c.ecf);
+ // dan bukan pembagian proporsional dari UCP proyek
+ assert.notEqual(Math.round(m1.ucp*100),Math.round(c.ucp*m1.uucw/c.uucw*100));
+});
+
+test('tiap modul memperoleh durasi M sendiri dari PM-nya', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ for(const r of c.moduleRows){
+  near(r.pm,r.ucp*c.phm/c.capacity);
+  near(r.duration,3*Math.cbrt(r.pm));
+  near(r.mandays,r.pm*r.duration*c.customWorkingDays);
+  near(r.man,c.customProjectDays?r.mandays/c.customProjectDays:0);
+ }
+ // durasi modul lebih pendek dari durasi proyek karena effort-nya lebih kecil
+ assert.ok(c.moduleRows.every(r=>r.duration<=c.duration+1e-9));
+});
+
+test('jumlah modul tidak dipaksa sama dengan angka proyek', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ const jml=c.moduleRows.reduce((a,r)=>a+r.mandays,0);
+ assert.ok(jml<c.mandays,'memecah effort menurunkan durasi tiap bagian, jadi jumlahnya lebih kecil');
+});
+
+test('UAW modul berasal dari actor yang dirujuk use case di dalamnya', () => {
+ const s=denganModul();
+ s.actors=[{id:'a1',name:'Mahasiswa',type:'Simple',qty:2},{id:'a2',name:'Admin',type:'Complex',qty:1}];
+ s.useCases=[
+  {id:'1',code:'UC-1',name:'a',actor:'Mahasiswa',transactions:3,type:'Simple',override:false,module:'m1'},
+  {id:'2',code:'UC-2',name:'b',actor:'Mahasiswa',transactions:3,type:'Simple',override:false,module:'m1'},
+  {id:'3',code:'UC-3',name:'c',actor:'Admin',transactions:3,type:'Simple',override:false,module:'m2'},
+  {id:'4',code:'UC-4',name:'d',actor:'Tidak Terdaftar',transactions:3,type:'Simple',override:false,module:'m2'},
+ ];
+ const c=calculate(s);
+ const m1=c.moduleRows.find(r=>r.key==='m1'), m2=c.moduleRows.find(r=>r.key==='m2');
+ assert.equal(m1.uaw,2,'actor yang sama dipakai dua use case hanya dihitung sekali: qty 2 x bobot Simple 1');
+ assert.equal(m2.uaw,3,'Admin Complex qty 1; actor tak terdaftar tidak menyumbang');
+ // seorang actor yang muncul di dua modul dihitung pada keduanya
+ s.useCases[2].actor='Mahasiswa';
+ const c2=calculate(s);
+ assert.equal(c2.moduleRows.find(r=>r.key==='m2').uaw,2);
+});
+
+test('satu modul setara proyek hanya bila seluruh actor ikut dirujuk', () => {
+ const s=denganModul();
+ s.actors=[{id:'a1',name:'Mahasiswa',type:'Average',qty:2}];
+ s.modules=[{key:'m1',code:'M1',name:'Tunggal'}];
+ s.useCases=s.useCases.map(u=>({...u,module:'m1',actor:'Mahasiswa'}));
+ const c=calculate(s);
+ const r=c.moduleRows[0];
+ assert.equal(r.uaw,c.uaw);
+ assert.equal(r.uucw,c.uucw);
+ near(r.ucp,c.ucp);
+ near(r.mandays,c.mandays);
+});
+
+test('actor yang tidak dirujuk use case tidak masuk UAW modul', () => {
+ const s=denganModul();
+ s.modules=[{key:'m1',code:'M1',name:'Tunggal'}];
+ s.useCases=s.useCases.map(u=>({...u,module:'m1',actor:''}));
+ const c=calculate(s);
+ assert.ok(c.uaw>0,'proyek tetap menghitung seluruh actor');
+ assert.equal(c.moduleRows[0].uaw,0,'modul hanya menghitung actor yang benar-benar dirujuk');
+ assert.ok(c.moduleRows[0].ucp<c.ucp);
+});
+
+test('modul kosong dan pembagi nol tetap menghasilkan angka finite', () => {
+ const s=denganModul();
+ s.useCases=[];
+ s.custom={workingDays:22,projectDays:0};
+ const c=calculate(s);
+ for(const r of c.moduleRows){
+  for(const k of ['uaw','uucw','ucp','pm','duration','mandays','man','cost'])
+   assert.ok(Number.isFinite(r[k]),`${k} tidak finite`);
+  assert.equal(r.man,0);
+ }
+});
+
+test('biaya per modul tetap dibagi menurut porsi UUCW', () => {
+ const s=denganModul();
+ const c=calculate(s);
+ near(c.moduleRows.reduce((a,r)=>a+r.cost,0),c.cost);
+ near(c.moduleRows[0].cost,c.cost*c.moduleRows[0].uucw/c.uucw);
 });
