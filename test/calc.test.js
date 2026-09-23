@@ -344,3 +344,37 @@ test('UCP modul tetap 0 dan finite saat tidak ada use case sama sekali', () => {
   assert.equal(r.share,0);
  }
 });
+
+test('Mandays dan Man per modul dibagi menurut porsi UUCW', () => {
+ const s=denganModul();
+ s.custom={workingDays:22,projectDays:120};
+ const c=calculate(s);
+ near(c.moduleRows[0].mandays,c.mandays*10/35);
+ near(c.moduleRows[1].mandays,c.mandays*15/35);
+ near(c.moduleRows[0].man,c.man*10/35);
+ // jumlah seluruh modul kembali tepat ke angka proyek
+ near(c.moduleRows.reduce((a,r)=>a+r.mandays,0),c.mandays);
+ near(c.moduleRows.reduce((a,r)=>a+r.man,0),c.man);
+});
+
+test('durasi proyek tidak ikut dibagi saat memecah Mandays per modul', () => {
+ const s=denganModul();
+ s.custom={workingDays:20,projectDays:100};
+ const c=calculate(s);
+ // Mandays modul = PM modul x durasi PROYEK x working days.
+ // Memakai durasi yang ikut dibagi akan menghasilkan share kuadrat.
+ for(const r of c.moduleRows)near(r.mandays,r.pm*c.duration*20);
+ const kuadrat=c.moduleRows[1].pm*c.moduleRows[1].duration*20;
+ assert.notEqual(Math.round(kuadrat*100),Math.round(c.moduleRows[1].mandays*100));
+});
+
+test('Mandays per modul tetap finite saat pembagi custom nol', () => {
+ const s=denganModul();
+ s.custom={workingDays:22,projectDays:0};
+ const c=calculate(s);
+ for(const r of c.moduleRows){
+  assert.ok(Number.isFinite(r.mandays));
+  assert.ok(Number.isFinite(r.man));
+  assert.equal(r.man,0);
+ }
+});

@@ -381,15 +381,55 @@ function CustomCalc({s,c,update,go}){
 // lalu menerjemahkannya menjadi mandays dan jumlah orang lewat dua angka yang
 // ditentukan sendiri.
 function CustomScenario({s,c,update,go}){
+ const adaModul=!!s.modules.length;
+ const [mode,setMode]=useState('proyek');
+ // Pandangan per modul hanya masuk akal bila modulnya ada. Bila modul terakhir
+ // dihapus saat pandangan itu terbuka, tampilan dikembalikan ke seluruh proyek
+ // alih-alih menyisakan tabel kosong.
+ const tampilan=adaModul?mode:'proyek';
+ const total=c.moduleRows.reduce((a,r)=>({pm:a.pm+r.pm,mandays:a.mandays+r.mandays,man:a.man+r.man,uucw:a.uucw+r.uucw}),{pm:0,mandays:0,man:0,uucw:0});
+
  return <section className="panel">
   <div className="panel-head"><h3><span className="judul">Kalkulasi Custom</span><span className="pill">MANDAYS &amp; MAN</span></h3>{go&&<button onClick={()=>go('calculation')}>Parameter Effort <ChevronRight size={15}/></button>}</div>
+
+  <div className="toolbar">
+   <div className="toolbar-group">
+    <span className="toolbar-label">Hitung untuk</span>
+    <button className={tampilan==='proyek'?'primary':''} onClick={()=>setMode('proyek')} aria-pressed={tampilan==='proyek'}><Calculator size={14}/>Seluruh Proyek</button>
+    <button className={tampilan==='modul'?'primary':''} onClick={()=>setMode('modul')} disabled={!adaModul} aria-pressed={tampilan==='modul'}
+     title={adaModul?undefined:'Belum ada modul aplikasi'}><Boxes size={14}/>Per Modul{adaModul&&<span className="target">{s.modules.length}</span>}</button>
+   </div>
+   {!adaModul&&<div className="toolbar-group"><span className="toolbar-label">belum ada modul</span>
+    <button onClick={()=>go&&go('usecases')}>Kelola Modul<ChevronRight size={13}/></button></div>}
+  </div>
+
   <div className="formgrid tight">
    <label>Working Days<NumInput value={s.custom.workingDays} min={1} max={31} onCommit={v=>update(['custom','workingDays'],v)}/></label>
    <label>Hari Durasi Project<NumInput value={s.custom.projectDays} min={1} max={100000} onCommit={v=>update(['custom','projectDays'],v)}/></label>
   </div>
-  <div className="formula"><b>Mandays</b><code>PM × M × Working Days = {fmt(c.pm)} × {fmt(c.duration)} × {fmt(c.customWorkingDays)} = {fmt(c.mandays)}</code></div>
-  <div className="formula"><b>Man</b><code>Mandays ÷ Hari Durasi Project = {fmt(c.mandays)} ÷ {fmt(c.customProjectDays)} = {fmt(c.man)}</code></div>
-  <p className="hint">PM dan M diambil dari perhitungan default: effort {fmt(c.pm)} person-month dan durasi {fmt(c.duration)} bulan. Dengan {fmt(c.customWorkingDays)} hari kerja per bulan, durasi itu setara {fmt(c.durationDays)} hari kerja.</p>
+
+  {tampilan==='proyek'?<>
+   <div className="formula"><b>Mandays</b><code>PM × M × Working Days = {fmt(c.pm)} × {fmt(c.duration)} × {fmt(c.customWorkingDays)} = {fmt(c.mandays)}</code></div>
+   <div className="formula"><b>Man</b><code>Mandays ÷ Hari Durasi Project = {fmt(c.mandays)} ÷ {fmt(c.customProjectDays)} = {fmt(c.man)}</code></div>
+   <p className="hint">PM dan M diambil dari perhitungan default: effort {fmt(c.pm)} person-month dan durasi {fmt(c.duration)} bulan. Dengan {fmt(c.customWorkingDays)} hari kerja per bulan, durasi itu setara {fmt(c.durationDays)} hari kerja.</p>
+  </>:<>
+   <div className="tablewrap lebar"><table><caption className="sr-only">Mandays dan Man per modul aplikasi</caption>
+    <thead><tr><th scope="col">Modul</th><th scope="col">Use Case</th><th scope="col">UUCW</th><th scope="col">Porsi</th><th scope="col">PM</th><th scope="col">Mandays</th><th scope="col">Man</th></tr></thead>
+    <tbody>{c.moduleRows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
+     <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
+     <td>{r.count}</td>
+     <td><b>{r.uucw}</b></td>
+     <td><div className="share"><i style={{width:`${Math.min(100,r.share*100)}%`}}/></div><small>{(r.share*100).toFixed(1)}%</small></td>
+     <td>{fmt(r.pm)}</td>
+     <td><b>{fmt(r.mandays)}</b></td>
+     <td><b>{fmt(r.man)}</b></td>
+    </tr>)}</tbody>
+    <tfoot><tr><td>Total</td><td>{s.useCases.length}</td><td><b>{total.uucw}</b></td><td>100%</td><td>{fmt(total.pm)}</td><td><b>{fmt(total.mandays)}</b></td><td><b>{fmt(total.man)}</b></td></tr></tfoot>
+   </table></div>
+   <div className="formula"><b>Mandays per modul</b><code>PM modul × M × Working Days, dengan M = {fmt(c.duration)} bulan dan Working Days = {fmt(c.customWorkingDays)}</code></div>
+   <div className="formula"><b>Man per modul</b><code>Mandays modul ÷ {fmt(c.customProjectDays)} hari durasi project</code></div>
+   <p className="hint">Hanya effort yang dibagi menurut porsi UUCW tiap modul. Durasi proyek tidak ikut dibagi karena modul berjalan di dalam rentang waktu yang sama, sehingga jumlah Mandays seluruh modul kembali tepat ke {fmt(c.mandays)} mandays proyek. Porsi UUCW dikelola pada menu <b>Use Cases</b>.</p>
+  </>}
  </section>;
 }
 

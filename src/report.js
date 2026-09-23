@@ -61,10 +61,10 @@ export function specExcel(s,c,issues){
   ['TOTAL UUCW','','','','','','',c.uucw],
  ]});
 
- sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UUCW','UCP','Porsi (%)','Effort (PM)','Biaya (Rp)'],rows:[
-  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,r.uucw,n2(r.ucp),n2(r.share*100),n2(r.pm),Math.round(r.cost)]),
+ sheets.push({name:'Rekap Modul',columns:['Modul','Kode','Use Case','Simple','Average','Complex','UUCW','UCP','Porsi (%)','Effort (PM)','Mandays','Man','Biaya (Rp)'],rows:[
+  ...c.moduleRows.map(r=>[r.name,r.code,r.count,r.Simple,r.Average,r.Complex,r.uucw,n2(r.ucp),n2(r.share*100),n2(r.pm),n2(r.mandays),n2(r.man),Math.round(r.cost)]),
   [],
-  ['TOTAL','',s.useCases.length,'','','',c.uucw,n2(c.ucp),100,n2(c.pm),Math.round(c.cost)],
+  ['TOTAL','',s.useCases.length,'','','',c.uucw,n2(c.ucp),100,n2(c.pm),n2(c.mandays),n2(c.man),Math.round(c.cost)],
  ]});
 
  const faktor=(daftar,label,jumlah,hasil,rumus)=>({name:label,columns:['Kode','Nama','Deskripsi','Assigned Value','Bobot','Hasil'],rows:[

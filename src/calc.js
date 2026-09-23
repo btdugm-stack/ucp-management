@@ -79,7 +79,11 @@ export function calculate(s){
  }
  const moduleRows=[...rows.values()].map(r=>{
   const share=div(r.uucw,uucw);
-  return {...r,share,ucp:ucp*share,pm:pm*share,cost:cost*share,duration:duration*share};
+  // Mandays dan Man ikut dipecah menurut porsi yang sama. Durasi proyek tidak
+  // ikut dibagi: modul berjalan di dalam rentang waktu proyek yang sama, jadi
+  // hanya effort-nya yang terbagi. Dengan begitu jumlah mandays seluruh modul
+  // kembali tepat ke mandays proyek.
+  return {...r,share,ucp:ucp*share,pm:pm*share,cost:cost*share,duration:duration*share,mandays:mandays*share,man:man*share};
  });
  return {uaw,uucw,uu,tf,ef,tcf,ecf,ucp,phm,ph,capacity,pm,duration,phaseWeight,phase,targetMonths,fte,resourceCost,extraCost,cost,customWorkingDays,customProjectDays,mandays,man,durationDays,moduleRows};
 }

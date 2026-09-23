@@ -244,6 +244,12 @@ Man     = Mandays ÷ Hari Durasi Project
 Kedua angka manual itu tersimpan per proyek pada kolom `custom_working_days`
 dan `custom_project_days`.
 
+Halaman itu juga menyediakan pengalih **Hitung untuk**: *Seluruh Proyek* atau
+*Per Modul*. Pada pandangan per modul, hanya effort yang dibagi menurut porsi
+UUCW tiap modul; durasi proyek tidak ikut dibagi karena modul berjalan di dalam
+rentang waktu yang sama. Dengan begitu jumlah Mandays seluruh modul kembali
+tepat ke Mandays proyek. Tombol *Per Modul* mati selama belum ada modul.
+
 **Seluruh masukan divalidasi dua kali**, di browser melalui `normalize()` dan di
 server sebelum menyentuh SQL. Pembagian dijaga agar parameter bernilai nol
 menghasilkan 0, bukan `Infinity`.
