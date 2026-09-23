@@ -659,7 +659,7 @@ function ModulePreview({s,c,go}){
 // ditetapkan untuk proyek, bukan per modul.
 function ModuleRecap({s,c,go}){
  const rows=c.moduleRows;
- const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp,pm:a.pm+r.pm,cost:a.cost+r.cost}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,ucp:0,pm:0,cost:0});
+ const total=rows.reduce((a,r)=>({count:a.count+r.count,Simple:a.Simple+r.Simple,Average:a.Average+r.Average,Complex:a.Complex+r.Complex,uucw:a.uucw+r.uucw,ucp:a.ucp+r.ucp,pm:a.pm+r.pm}),{count:0,Simple:0,Average:0,Complex:0,uucw:0,ucp:0,pm:0});
  if(!s.modules.length&&!s.useCases.length)return <section className="panel"><div className="empty"><Boxes size={26}/><b>Belum ada use case</b><small>Tambahkan use case lebih dulu, lalu kelompokkan ke modul lewat tombol Add Modul.</small><div className="crash-actions"><button className="primary" onClick={()=>go('usecases')}>Buka Daftar Use Case<ChevronRight size={15}/></button></div></div></section>;
  return <>
   <div className="cards">
@@ -673,8 +673,8 @@ function ModuleRecap({s,c,go}){
    {!s.modules.length
     ?<p className="hint">Belum ada modul. Seluruh {total.count} use case dihitung sebagai satu kesatuan. Tambahkan modul lewat tombol <b>Add Modul</b> pada Daftar Use Case bila estimasi perlu dipecah.</p>
     :null}
-   <table><caption className="sr-only">Rekap use case, UUCW, effort, dan biaya per modul</caption>
-    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">Effort</th><th scope="col">Durasi</th><th scope="col">Biaya</th></tr></thead>
+   <table><caption className="sr-only">Rekap use case, UUCW, UCP, effort, dan durasi per modul</caption>
+    <thead><tr><th scope="col">Modul</th><th scope="col">UC</th><th scope="col">Simple</th><th scope="col">Average</th><th scope="col">Complex</th><th scope="col">UUCW</th><th scope="col">UCP</th><th scope="col">Effort</th><th scope="col">Durasi</th></tr></thead>
     <tbody>{rows.map(r=><tr key={r.key||'__lepas'} className={r.assigned?'':'loose'}>
      <td><b>{r.name}</b>{r.code&&<small className="flag">{r.code}</small>}</td>
      <td>{r.count}</td><td>{r.Simple}</td><td>{r.Average}</td><td>{r.Complex}</td>
@@ -682,11 +682,10 @@ function ModuleRecap({s,c,go}){
      <td>{r.ucp.toFixed(2)}</td>
      <td>{r.pm.toFixed(2)} PM</td>
      <td>{r.duration.toFixed(2)} mo</td>
-     <td>{money(r.cost)}</td>
     </tr>)}</tbody>
-    <tfoot><tr><td>Jumlah</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>{total.ucp.toFixed(2)}</td><td>{total.pm.toFixed(2)} PM</td><td>—</td><td><b>{money(total.cost)}</b></td></tr></tfoot>
+    <tfoot><tr><td>Jumlah</td><td>{total.count}</td><td>{total.Simple}</td><td>{total.Average}</td><td>{total.Complex}</td><td><b>{total.uucw}</b></td><td>{total.ucp.toFixed(2)}</td><td>{total.pm.toFixed(2)} PM</td><td>—</td></tr></tfoot>
    </table>
-   <p className="hint">Tiap modul dihitung sebagai estimasi yang berdiri sendiri: UAW dari actor yang dirujuk use case di dalamnya, UUCW dari use case itu sendiri, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek karena menggambarkan teknologi dan tim. Baris <b>Jumlah</b> karena itu tidak harus sama dengan angka proyek — durasi memakai akar pangkat tiga, sehingga memecah effort menurunkan durasi masing-masing bagian. <b>Biaya</b> adalah pengecualian: tetap dibagi menurut porsi UUCW karena peran pada staffing ditetapkan untuk proyek, bukan per modul.</p>
+   <p className="hint">Tiap modul dihitung sebagai estimasi yang berdiri sendiri: UAW dari actor yang dirujuk use case di dalamnya, UUCW dari use case itu sendiri, lalu rantai UCP yang sama. TCF dan ECF tetap milik proyek karena menggambarkan teknologi dan tim. Baris <b>Jumlah</b> karena itu tidak harus sama dengan angka proyek — durasi memakai akar pangkat tiga, sehingga memecah effort menurunkan durasi masing-masing bagian. Biaya tidak dirinci di sini karena peran pada staffing ditetapkan untuk proyek, bukan per modul; rinciannya ada pada menu <b>Cost</b>.</p>
   </section>
  </>;
 }

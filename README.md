@@ -211,9 +211,10 @@ bagian menurunkan durasi masing-masing bagian; jumlah mandays seluruh modul
 akan lebih kecil daripada mandays proyek. Actor yang tidak dirujuk satu pun use
 case juga tidak masuk UAW modul mana pun.
 
-**Biaya adalah pengecualian**: tetap dibagi menurut porsi UUCW, karena peran
+**Biaya tidak dirinci per modul** pada submenu *Rekap per Modul*, karena peran
 pada staffing ditetapkan untuk proyek secara keseluruhan dan bukan milik satu
-modul.
+modul; rinciannya ada pada menu *Cost*. Laporan Excel dan Word masih memuat
+kolom biaya per modul, dibagi menurut porsi UUCW.
 
 Angka itu tampil pada panel Modul Aplikasi, submenu *Rekap per Modul*, dan
 pandangan *Per Modul* pada Kalkulasi Custom. Use case yang belum masuk modul
