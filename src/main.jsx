@@ -4,7 +4,7 @@ import {FileSpreadsheet,FileText,LoaderCircle,Boxes,Database,Copy,LayoutDashboar
 import {actorWeights,ucWeights,complexity,extraKeys,calculate,validate,clamp,num,deriveComplexity,effectiveType,RATING_MIN,RATING_MAX} from './calc.js';
 import {newState,emptyProject,normalize,nextCode,nextModuleCode,newUseCase,newModule,deleteModule,moduleImpact,resolveActiveModule,useCasesInView,uid,statuses,levels,readStored,clearStored,clearAllLocal,legacyState,saveDraft,readDraft,clearDraft} from './state.js';
 import {listProjects,getProject,createProject,saveProject,deleteProject,duplicateProject,buildReport,readSpreadsheet} from './api.js';
-import {specExcel,specWord} from './report.js';
+import {specExcel,specWord,specCustomCalc} from './report.js';
 import {specUseCaseSheet,parseUseCaseSheet,applyUseCaseImport} from './usecaseio.js';
 import './styles.css';
 
@@ -383,6 +383,17 @@ function CustomCalc({s,c,update,go}){
 function CustomScenario({s,c,update,go}){
  const adaModul=!!s.modules.length;
  const [mode,setMode]=useState('proyek');
+ const [sibuk,setSibuk]=useState(false);
+ const [galat,setGalat]=useState(null);
+ // Lembar kerjanya memuat kedua pandangan sekaligus, jadi hasilnya sama
+ // apa pun yang sedang ditampilkan di layar.
+ const ekspor=async()=>{
+  if(sibuk)return;
+  setSibuk(true);setGalat(null);
+  try{const spec=specCustomCalc(s,c);download(await buildReport('xlsx',spec),`${spec.filename}.xlsx`)}
+  catch(e){setGalat(e)}
+  finally{setSibuk(false)}
+ };
  // Pandangan per modul hanya masuk akal bila modulnya ada. Bila modul terakhir
  // dihapus saat pandangan itu terbuka, tampilan dikembalikan ke seluruh proyek
  // alih-alih menyisakan tabel kosong.
@@ -399,9 +410,20 @@ function CustomScenario({s,c,update,go}){
     <button className={tampilan==='modul'?'primary':''} onClick={()=>setMode('modul')} disabled={!adaModul} aria-pressed={tampilan==='modul'}
      title={adaModul?undefined:'Belum ada modul aplikasi'}><Boxes size={14}/>Per Modul{adaModul&&<span className="target">{s.modules.length}</span>}</button>
    </div>
-   {!adaModul&&<div className="toolbar-group"><span className="toolbar-label">belum ada modul</span>
-    <button onClick={()=>go&&go('usecases')}>Kelola Modul<ChevronRight size={13}/></button></div>}
+   <div className="toolbar-group">
+    {!adaModul&&<><span className="toolbar-label">belum ada modul</span>
+     <button onClick={()=>go&&go('usecases')}>Kelola Modul<ChevronRight size={13}/></button></>}
+    <button onClick={ekspor} disabled={sibuk}>
+     {sibuk?<LoaderCircle size={14} className="spin"/>:<FileSpreadsheet size={14}/>}Export Excel
+    </button>
+   </div>
   </div>
+
+  {galat&&<div className="db-down">
+   <b><CircleAlert size={16}/>{galat.kind==='database'?'Database tidak dapat dihubungi':'Lembar kerja gagal dibuat'}</b>
+   <p>{galat.message}</p>
+   <small>Berkas Excel dihasilkan oleh API, jadi pastikan backend berjalan. Saat pengembangan, jalankan <code>npm run api</code> di terminal terpisah.</small>
+  </div>}
 
   <div className="formgrid tight">
    <label>Working Days<NumInput value={s.custom.workingDays} min={1} max={31} onCommit={v=>update(['custom','workingDays'],v)}/></label>

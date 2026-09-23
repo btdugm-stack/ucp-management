@@ -257,6 +257,11 @@ Man     = Mandays ÷ Hari Durasi Project
 Kedua angka manual itu tersimpan per proyek pada kolom `custom_working_days`
 dan `custom_project_days`.
 
+Halaman itu memuat tombol **Export Excel** yang menghasilkan lembar kerja berisi
+kedua pandangan sekaligus: lembar *Ringkasan* untuk seluruh proyek dan lembar
+*Per Modul* untuk rinciannya, lengkap dengan baris JUMLAH MODUL dan PROYEK
+berdampingan. Isinya sama apa pun pandangan yang sedang terbuka di layar.
+
 Halaman itu juga menyediakan pengalih **Hitung untuk**: *Seluruh Proyek* atau
 *Per Modul*. Pada pandangan per modul, hanya effort yang dibagi menurut porsi
 UUCW tiap modul; durasi proyek tidak ikut dibagi karena modul berjalan di dalam

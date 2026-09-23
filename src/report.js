@@ -203,3 +203,37 @@ export function specWord(s,c,issues){
   blocks
  };
 }
+
+// --------------------------------------------------- Excel Kalkulasi Custom
+// Isi submenu Kalkulasi Custom dalam bentuk lembar kerja: ringkasan seluruh
+// proyek pada satu lembar, rincian per modul pada lembar lain. Keduanya
+// memakai angka yang sama dengan yang tampil di layar.
+export function specCustomCalc(s,c){
+ const jml=k=>c.moduleRows.reduce((a,r)=>a+r[k],0);
+ const sheets=[{name:'Ringkasan',columns:['Keterangan','Nilai','Dasar'],rows:[
+  ['Kode Proyek',s.project.code,''],
+  ['Nama Proyek',s.project.name,''],
+  [],
+  ['Person-Month (PM)',n2(c.pm),'dari Kalkulasi UCP'],
+  ['Durasi M (bulan)',n2(c.duration),'3 x PM^(1/3)'],
+  ['Working Days',num(s.custom.workingDays),'masukan manual'],
+  ['Hari Durasi Project',num(s.custom.projectDays),'masukan manual'],
+  [],
+  ['Mandays',n2(c.mandays),'PM x M x Working Days'],
+  ['Man',n2(c.man),'Mandays : Hari Durasi Project'],
+  [],
+  ['Durasi setara hari kerja',n2(c.durationDays),`M x ${num(s.custom.workingDays)} hari kerja per bulan`],
+  ['Laporan dibuat',tanggal(),''],
+ ]}];
+
+ sheets.push({name:'Per Modul',columns:['Modul','Kode','Use Case','UAW','UUCW','UCP','PM','M (bulan)','Mandays','Man'],rows:[
+  ...c.moduleRows.map(r=>[r.name,r.code,r.count,n2(r.uaw),r.uucw,n2(r.ucp),n2(r.pm),n2(r.duration),n2(r.mandays),n2(r.man)]),
+  [],
+  ['JUMLAH MODUL','',s.useCases.length,'',c.uucw,n2(jml('ucp')),n2(jml('pm')),'',n2(jml('mandays')),n2(jml('man'))],
+  ['PROYEK','',s.useCases.length,c.uaw,c.uucw,n2(c.ucp),n2(c.pm),n2(c.duration),n2(c.mandays),n2(c.man)],
+  [],
+  ['Catatan','Tiap modul dihitung berdiri sendiri: UAW dari actor yang dirujuk use case di dalamnya, UUCW dari use case itu, memakai TCF dan ECF proyek. Jumlah modul tidak harus sama dengan angka proyek karena durasi memakai akar pangkat tiga, sehingga memecah effort menurunkan durasi masing-masing bagian.'],
+ ]});
+
+ return {filename:namaBerkas(s,'Kalkulasi Custom'),sheets};
+}
